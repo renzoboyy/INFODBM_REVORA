@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REVORA - Admin Dashboard</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>REVORA Admin Dashboard</h1>
+  <a href="registrant.html" style="color:white;font-size:0.85rem;">Registration Portal &rarr;</a>
+</header>
+<main>
+  <div id="message"></div>
+
+  <div class="card">
+    <h2>Onboarding Analytics</h2>
+    <div class="stat-grid" id="statGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2>Pending Queue</h2>
+    <table>
+      <thead>
+        <tr><th>User ID</th><th>Name</th><th>Entity</th><th>Submitted</th><th>SLA</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="queueBody"></tbody>
+    </table>
+  </div>
+
+  <div id="reviewOverlay" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="reviewTitle">Application Review</h2>
+        <button type="button" class="btn-secondary" id="reviewClose">Close</button>
+      </div>
+      <div id="reviewBody" class="modal-body"></div>
+      <div class="modal-footer">
+        <textarea id="reviewNotes" rows="2" placeholder="Optional notes (shown in the audit log)..."></textarea>
+        <div class="actions" style="margin-top:10px;">
+          <button type="button" class="btn-approve" id="reviewApprove">Approve</button>
+          <button type="button" class="btn-reject" id="reviewReject">Reject</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Applicant Directory</h2>
+    <div class="row">
+      <div><input id="searchBox" placeholder="Search name, entity, or TIN..."></div>
+      <div>
+        <select id="statusFilter">
+          <option value="">All Statuses</option>
+          <option value="1">Pending</option>
+          <option value="2">Approved</option>
+          <option value="3">Rejected</option>
+          <option value="4">Suspended</option>
+          <option value="5">Deleted</option>
+          <option value="6">Closed</option>
+        </select>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr><th>User ID</th><th>Name</th><th>Email</th><th>Category</th><th>Status</th><th>Entity</th></tr>
+      </thead>
+      <tbody id="resultsBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Branch Closure</h2>
+    <p class="muted">Retrieves the branch, closes the affected representative's account, unlinks the entity, then deletes the branch record - all in one transaction.</p>
+    <div class="row">
+      <div><label>Branch ID</label><input id="branchIdInput" placeholder="B00005"></div>
+      <div style="align-self:flex-end;"><button type="button" class="btn-secondary" id="branchLookupBtn">Look Up</button></div>
+    </div>
+    <div id="branchLookupResult"></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+</body>
+</html>

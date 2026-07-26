@@ -1,0 +1,16 @@
+{
+  "name": "revora",
+  "version": "1.0.0",
+  "description": "REVORA registration & approval system - backend + frontend over INFODBM_REVORA",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mssql": "^11.0.1"
+  }
+}
