@@ -121,9 +121,11 @@ async function handleDecision(userId, action) {
   }
 }
 
-function addr(detailed, city, province, postal) {
+function addr(detailed, barangay, city, province, region, postal) {
   if (!detailed) return null;
-  return `${detailed}, ${city}${province ? ', ' + province : ''} ${postal || ''}`.trim();
+  const barangayPart = barangay && barangay !== 'Unspecified' ? ', ' + barangay : '';
+  const regionPart = region && region !== 'Unspecified' ? ' (' + region + ')' : '';
+  return `${detailed}${barangayPart}, ${city}${province ? ', ' + province : ''} ${postal || ''}${regionPart}`.trim();
 }
 
 async function selectApplicant(userId) {
@@ -140,8 +142,8 @@ async function selectApplicant(userId) {
   }
   const a = await res.json();
 
-  const personalAddr = addr(a.DetailedHome, a.HomeCity, a.HomeProvince, a.HomePostalCode);
-  const branchAddr = addr(a.BranchDetailedAddress, a.BranchCity, null, a.BranchPostalCode);
+  const personalAddr = addr(a.DetailedHome, a.HomeBarangay, a.HomeCity, a.HomeProvince, a.HomeRegion, a.HomePostalCode);
+  const branchAddr = addr(a.BranchDetailedAddress, a.BranchBarangay, a.BranchCity, a.BranchProvince, a.BranchRegion, a.BranchPostalCode);
 
   let entityRows = '';
   if (a.EntityName) {

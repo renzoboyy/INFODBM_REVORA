@@ -274,10 +274,11 @@ function initStep5() {
 function initStep6() {
   document.getElementById('address-next').addEventListener('click', () => {
     const home = document.getElementById('fi-home').value.trim();
+    const barangay = document.getElementById('fi-barangay').value.trim();
     const city = document.getElementById('fi-city').value.trim();
     const postal = document.getElementById('fi-postal').value.trim();
 
-    if (!home || !city || !postal) {
+    if (!home || !barangay || !city || !postal) {
       showRegMsg('Please fill in all required address fields.', 'error'); return;
     }
     if (!/^[0-9]{4}$/.test(postal)) {
@@ -286,8 +287,10 @@ function initStep6() {
 
     state.address = {
       detailedHome: home,
+      barangay,
       city,
       province: document.getElementById('fi-province').value.trim() || null,
+      region: document.getElementById('fi-region').value.trim() || null,
       postalCode: postal
     };
 
@@ -336,10 +339,13 @@ function validateAndShowReview() {
     const tin = document.getElementById('fi-tin').value.trim();
     const sectorId = document.getElementById('fi-sector').value;
     const branchAddr = document.getElementById('fi-branchAddr').value.trim();
+    const branchBarangay = document.getElementById('fi-branchBarangay').value.trim();
     const branchCity = document.getElementById('fi-branchCity').value.trim();
+    const branchProvince = document.getElementById('fi-branchProvince').value.trim();
+    const branchRegion = document.getElementById('fi-branchRegion').value.trim();
     const branchPostal = document.getElementById('fi-branchPostal').value.trim();
 
-    if (!entityName || !tin || !sectorId || !branchAddr || !branchCity || !branchPostal) {
+    if (!entityName || !tin || !sectorId || !branchAddr || !branchBarangay || !branchCity || !branchProvince || !branchPostal) {
       showRegMsg('Please fill in all required entity and branch fields.', 'error'); return;
     }
     if (tin.length !== 11) {
@@ -349,7 +355,11 @@ function validateAndShowReview() {
       showRegMsg('Branch Postal Code must be exactly 4 digits.', 'error'); return;
     }
 
-    state.entity = { entityName, tin, sectorId, branchDetailedAddress: branchAddr, branchCity, branchPostalCode: branchPostal };
+    state.entity = {
+      entityName, tin, sectorId,
+      branchDetailedAddress: branchAddr, branchBarangay, branchCity, branchProvince,
+      branchRegion: branchRegion || null, branchPostalCode: branchPostal
+    };
   }
 
   clearRegMsg();
@@ -373,7 +383,7 @@ function showReview() {
         <dl class="review-item"><dt>Entity Name</dt><dd>${state.entity.entityName}</dd></dl>
         <dl class="review-item"><dt>TIN</dt><dd>${state.entity.tin}</dd></dl>
         <dl class="review-item"><dt>Sector</dt><dd>${sector || '-'}</dd></dl>
-        <dl class="review-item"><dt>Branch Address</dt><dd>${state.entity.branchDetailedAddress}, ${state.entity.branchCity} ${state.entity.branchPostalCode}</dd></dl>
+        <dl class="review-item"><dt>Branch Address</dt><dd>${state.entity.branchDetailedAddress}, ${state.entity.branchBarangay}, ${state.entity.branchCity}, ${state.entity.branchProvince} ${state.entity.branchPostalCode}${state.entity.branchRegion ? ' (' + state.entity.branchRegion + ')' : ''}</dd></dl>
       </div>
     </div>
   ` : '';
@@ -411,8 +421,8 @@ function showReview() {
     <div class="review-section">
       <div class="review-section-title">Home Address</div>
       <div class="review-grid">
-        <dl class="review-item"><dt>Address</dt><dd>${state.address.detailedHome}</dd></dl>
-        <dl class="review-item"><dt>City / Province</dt><dd>${state.address.city}${state.address.province ? ', ' + state.address.province : ''} ${state.address.postalCode}</dd></dl>
+        <dl class="review-item"><dt>Address</dt><dd>${state.address.detailedHome}, ${state.address.barangay}</dd></dl>
+        <dl class="review-item"><dt>City / Province</dt><dd>${state.address.city}${state.address.province ? ', ' + state.address.province : ''} ${state.address.postalCode}${state.address.region ? ' (' + state.address.region + ')' : ''}</dd></dl>
       </div>
     </div>
     ${entityHtml}

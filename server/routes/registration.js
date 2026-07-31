@@ -16,13 +16,22 @@ router.post('/register', async (req, res) => {
     request.input('GovtType', sql.VarChar(15), b.govtType);
     request.input('GovtNo', sql.VarChar(20), b.govtNo);
 
+    // @Barangay/@Region default to 'Unspecified' in sp_RegisterUser - only
+    // bind them when a real value was submitted, so an omitted/blank field
+    // falls through to that default instead of being written as NULL.
+    if (b.barangay) request.input('Barangay', sql.NVarChar(50), b.barangay);
+    if (b.region) request.input('Region', sql.NVarChar(50), b.region);
+
     if (b.accountType === 'Entity') {
       request.input('BranchDetailedAddr', sql.NVarChar(250), b.branchDetailedAddress);
       request.input('BranchCity', sql.NVarChar(50), b.branchCity);
+      request.input('BranchProvince', sql.NVarChar(50), b.branchProvince);
       request.input('BranchPostalCode', sql.Char(4), b.branchPostalCode);
       request.input('EntityName', sql.NVarChar(50), b.entityName);
       request.input('TIN', sql.NChar(11), b.tin);
       request.input('SectorID', sql.Char(6), b.sectorId);
+      if (b.branchBarangay) request.input('BranchBarangay', sql.NVarChar(50), b.branchBarangay);
+      if (b.branchRegion) request.input('BranchRegion', sql.NVarChar(50), b.branchRegion);
     }
 
     request.input('Username', sql.NChar(10), b.username);

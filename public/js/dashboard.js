@@ -66,7 +66,7 @@ async function loadDashboard() {
 
   const entityCard = document.getElementById('entityCard');
   if (a.EntityName) {
-    const branchAddr = addr(a.BranchDetailedAddress, a.BranchCity, null, a.BranchPostalCode);
+    const branchAddr = addr(a.BranchDetailedAddress, a.BranchBarangay, a.BranchCity, a.BranchProvince, a.BranchRegion, a.BranchPostalCode);
     entityCard.innerHTML = `
       <dl class="detail-grid">
         <dt>Entity Name</dt><dd>${a.EntityName}</dd>
@@ -81,7 +81,7 @@ async function loadDashboard() {
     entityCard.innerHTML = '<p class="muted placeholder-text">This account is registered as an Individual and has no linked entity.</p>';
   }
 
-  const personalAddr = addr(a.DetailedHome, a.HomeCity, a.HomeProvince, a.HomePostalCode);
+  const personalAddr = addr(a.DetailedHome, a.HomeBarangay, a.HomeCity, a.HomeProvince, a.HomeRegion, a.HomePostalCode);
   document.getElementById('ac-name').textContent = fullName;
   document.getElementById('ac-username').textContent = a.Username.trim();
   document.getElementById('ac-email').textContent = a.Email;
