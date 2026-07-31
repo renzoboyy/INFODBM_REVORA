@@ -150,7 +150,7 @@ async function selectApplicant(userId) {
       <dt>Entity Name</dt><dd>${a.EntityName}</dd>
       <dt>TIN</dt><dd>${(a.TIN || '').trim()}</dd>
       <dt>Sector</dt><dd>${a.SectorName}</dd>
-      <dt>Branch ID / Code</dt><dd>${a.BranchID || '-'} / ${a.BranchCode || '-'}</dd>
+      <dt>Branch ID</dt><dd>${a.BranchID || '-'}</dd>
       <dt>Branch Address</dt><dd>${branchAddr || '-'}</dd>
     `;
   }
@@ -230,7 +230,6 @@ async function lookupBranch() {
   resultEl.innerHTML = `
     <dl class="detail-grid">
       <dt>Branch ID</dt><dd>${b.BranchID}</dd>
-      <dt>Branch Code</dt><dd>${b.BranchCode}</dd>
       <dt>Address</dt><dd>${b.DetailedAddress}, ${b.City} ${b.PostalCode}</dd>
       <dt>Linked Entity</dt><dd>${b.EntityName || '(none)'}</dd>
     </dl>

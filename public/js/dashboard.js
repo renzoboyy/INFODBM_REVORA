@@ -72,7 +72,7 @@ async function loadDashboard() {
         <dt>Entity Name</dt><dd>${a.EntityName}</dd>
         <dt>TIN</dt><dd>${(a.TIN || '').trim()}</dd>
         <dt>Sector</dt><dd>${a.SectorName || '-'}</dd>
-        <dt>Branch ID / Code</dt><dd>${a.BranchID || '-'} / ${a.BranchCode || '-'}</dd>
+        <dt>Branch ID</dt><dd>${a.BranchID || '-'}</dd>
         <dt>Branch Address</dt><dd>${branchAddr || '-'}</dd>
       </dl>
       <p class="muted" style="margin-top:14px;">Use the <strong>Edit Profile</strong> button on the Overview tab to request a correction to any of these details.</p>

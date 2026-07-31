@@ -17,7 +17,6 @@ router.post('/register', async (req, res) => {
     request.input('GovtNo', sql.VarChar(20), b.govtNo);
 
     if (b.accountType === 'Entity') {
-      request.input('BranchCode', sql.Char(5), b.branchCode);
       request.input('BranchDetailedAddr', sql.NVarChar(250), b.branchDetailedAddress);
       request.input('BranchCity', sql.NVarChar(50), b.branchCity);
       request.input('BranchPostalCode', sql.Char(4), b.branchPostalCode);

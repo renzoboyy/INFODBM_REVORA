@@ -148,9 +148,12 @@ router.get('/admin/branches/:id', async (req, res) => {
     const request = pool.request();
     request.input('BranchID', sql.Char(6), req.params.id);
     const result = await request.query(`
-      SELECT br.BranchID, br.BranchCode, br.DetailedAddress, br.City, br.PostalCode,
+      SELECT br.BranchID, a.DetailedAddress, cm.CityName AS City, bg.PostalCode,
              e.EntityID, e.EntityName, e.TIN
-      FROM dbo.Branches br
+      FROM dbo.Branch br
+      JOIN dbo.Address a ON br.AddressID = a.AddressID
+      JOIN dbo.Barangay bg ON a.BarangayID = bg.BarangayID
+      JOIN dbo.CityMunicipality cm ON bg.CityID = cm.CityID
       LEFT JOIN dbo.Entities e ON e.BranchID = br.BranchID
       WHERE br.BranchID = @BranchID
     `);

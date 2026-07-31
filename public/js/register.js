@@ -335,25 +335,21 @@ function validateAndShowReview() {
     const entityName = document.getElementById('fi-entityName').value.trim();
     const tin = document.getElementById('fi-tin').value.trim();
     const sectorId = document.getElementById('fi-sector').value;
-    const branchCode = document.getElementById('fi-branchCode').value.trim();
     const branchAddr = document.getElementById('fi-branchAddr').value.trim();
     const branchCity = document.getElementById('fi-branchCity').value.trim();
     const branchPostal = document.getElementById('fi-branchPostal').value.trim();
 
-    if (!entityName || !tin || !sectorId || !branchCode || !branchAddr || !branchCity || !branchPostal) {
+    if (!entityName || !tin || !sectorId || !branchAddr || !branchCity || !branchPostal) {
       showRegMsg('Please fill in all required entity and branch fields.', 'error'); return;
     }
     if (tin.length !== 11) {
       showRegMsg('TIN must be exactly 11 characters (no dashes).', 'error'); return;
     }
-    if (!/^[0-9]{5}$/.test(branchCode)) {
-      showRegMsg('Branch Code must be exactly 5 digits.', 'error'); return;
-    }
     if (!/^[0-9]{4}$/.test(branchPostal)) {
       showRegMsg('Branch Postal Code must be exactly 4 digits.', 'error'); return;
     }
 
-    state.entity = { entityName, tin, sectorId, branchCode, branchDetailedAddress: branchAddr, branchCity, branchPostalCode: branchPostal };
+    state.entity = { entityName, tin, sectorId, branchDetailedAddress: branchAddr, branchCity, branchPostalCode: branchPostal };
   }
 
   clearRegMsg();
@@ -377,7 +373,6 @@ function showReview() {
         <dl class="review-item"><dt>Entity Name</dt><dd>${state.entity.entityName}</dd></dl>
         <dl class="review-item"><dt>TIN</dt><dd>${state.entity.tin}</dd></dl>
         <dl class="review-item"><dt>Sector</dt><dd>${sector || '-'}</dd></dl>
-        <dl class="review-item"><dt>Branch Code</dt><dd>${state.entity.branchCode}</dd></dl>
         <dl class="review-item"><dt>Branch Address</dt><dd>${state.entity.branchDetailedAddress}, ${state.entity.branchCity} ${state.entity.branchPostalCode}</dd></dl>
       </div>
     </div>
