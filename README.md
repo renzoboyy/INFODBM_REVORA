@@ -5,19 +5,16 @@ registration, government-ID/TIN verification, admin approval workflow, and
 branch closure, built on SQL Server + a thin Node/Express API + static
 HTML/JS front ends.
 
-This README assumes you already have a SQL Server instance running with an
-**`INFODBM_REVORA` database whose schema matches `db/01_schema_v2.sql`**
-(the 10-table design: `Roles`, `Categories`, `AccountStatus`, `Sectors`,
-`GID`, `Address`, `Branches`, `Entities`, `Users`, `AuditLog`, plus the
-three `Users` triggers). You do **not** need to run `01_schema_v2.sql` or
-`02_seed_v2.sql` — those are only for building the database from scratch.
-You do still need to apply `db/03_additional_objects_v2.sql` (see step 4).
+This README takes you from a fresh clone on a machine with **no existing
+`INFODBM_REVORA` database** to a fully running app. The scripts in `db/`
+build the database from scratch, including the full security layer (roles,
+permission grants, dynamic data masking) and the login/password the app
+itself connects with.
 
 ## 1. Prerequisites
 
 - Node.js 18+ and npm
-- SQL Server (SSMS or any client) with the `INFODBM_REVORA` database already
-  created and reachable
+- A SQL Server instance you can connect to as a sysadmin (SSMS or `sqlcmd`)
 - **Mixed Mode authentication** enabled on the instance (SQL Server logins,
   not just Windows auth) — the app connects via a SQL login, not Windows
   Integrated Auth
@@ -41,51 +38,56 @@ cd INFODBM_REVORA
 npm install
 ```
 
-## 3. Create a dedicated SQL login for the app
+## 3. Build the database from scratch
 
-Run this against your instance (adjust the password):
-
-```sql
-USE [master];
-CREATE LOGIN [revora_app] WITH PASSWORD = N'ChangeMe!123', CHECK_POLICY = ON,
-    CHECK_EXPIRATION = OFF, DEFAULT_DATABASE = [INFODBM_REVORA];
-
-USE [INFODBM_REVORA];
-CREATE USER [revora_app] FOR LOGIN [revora_app];
-ALTER ROLE db_datareader ADD MEMBER [revora_app];
-ALTER ROLE db_datawriter ADD MEMBER [revora_app];
-GRANT EXECUTE ON SCHEMA::dbo TO [revora_app];
-```
-
-## 4. Apply the additional database objects
-
-The app depends on views, stored procedures, and a function that live on
-top of the base schema (`ApproveUserAccount`, `sp_RejectRegistrant`,
-`sp_RegisterUser`, `sp_CloseBranch`, `fn_SLAStatus`,
-`vw_ApplicantDirectory`, `vw_ApplicantDetail`, `vw_PendingThenApproved`,
-`vw_EntityBasedRegistrants`). Apply them once:
+Run the scripts in `db/` **in this exact order**, against your instance.
+Each one is layered on top of the previous, and `05`/`06` explicitly depend
+on the ones before them.
 
 ```powershell
+sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\01_schema_v2.sql"
 sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\03_additional_objects_v2.sql"
+sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\04_indexes_and_views_v2.sql"
+sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\05_security_v2.sql"
+sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\06_profile_edit_workflow_v2.sql"
 ```
 
-(`-E` uses your current Windows login to run the script — that's separate
-from the `revora_app` SQL login the *app* uses at runtime. Substitute
-`-U -P` if you need SQL auth here instead.)
+(`-E` uses your current Windows login, which needs sysadmin rights to
+create the database/logins in `01` and `05`. Substitute `-U -P` for SQL
+auth instead.)
 
-This script is idempotent — re-running it drops and recreates each object,
-so it's safe to run again after pulling schema changes.
+- **Skip `02_seed_v2.sql`** unless you specifically want sample rows — the
+  app doesn't need any data to run, just the schema.
+- **`01_schema_v2.sql` DROPS and RECREATES `INFODBM_REVORA`** if it already
+  exists on that instance. Don't point this at a database you care about.
+- All five scripts are idempotent (each object is dropped/recreated or
+  existence-checked), so re-running any of them after a pull is safe.
 
-> **Note:** every object here is created with `SET QUOTED_IDENTIFIER ON`
-> and `SET ANSI_NULLS ON` immediately beforehand. Those settings are baked
-> into a procedure/view at the moment it's compiled — if your database's
-> default differs and you hand-edit or re-create any of these objects
-> outside this script, DML against `Users` may fail with an error about
-> `QUOTED_IDENTIFIER`/filtered indexes.
+### What `05_security_v2.sql` creates
 
-## 5. Configure environment variables
+This is the security layer from the lab exercise, adapted to Revora's
+actual access model. It creates three SQL Server logins + matching DB
+users, each scoped to a different consumer:
 
-Copy the example file and fill in your connection details:
+| Login           | Password              | Role                                             |
+|-----------------|------------------------|---------------------------------------------------|
+| `revora_admin`  | `R3v0ra@Admin#2025!`  | `db_owner` + `UNMASK` — full control              |
+| `revora_staff`  | `R3v0ra@Staff#2025!`  | read + approval/rejection/branch-closure SPs only |
+| `revora_api`    | `R3v0ra@Api#2025!`    | read + write via SPs only, no DELETE, no DDL      |
+
+It also applies Dynamic Data Masking to `Users.Email`, `Users.PhoneNumber`,
+and `GID.GovtNo` — `revora_staff`/`revora_api` see masked values, only
+`revora_admin` sees real ones.
+
+`revora_staff` and `revora_api` are intentionally narrow and don't overlap
+(e.g. only `revora_api` can execute `sp_RegisterUser`/`sp_RequestProfileEdit`,
+only `revora_staff` can execute `ApproveUserAccount`/`sp_RejectRegistrant`/
+`sp_CloseBranch`/`sp_ApproveProfileEdit`/`sp_RejectProfileEdit`). The Node
+app in this repo is a single process sharing one connection pool across
+*all* of those routes, so **it must connect as `revora_admin`** — no single
+scoped login covers everything the app calls end to end.
+
+## 4. Configure environment variables
 
 ```powershell
 Copy-Item .env.example .env
@@ -95,8 +97,8 @@ Copy-Item .env.example .env
 DB_SERVER=localhost
 DB_PORT=1435
 DB_DATABASE=INFODBM_REVORA
-DB_USER=revora_app
-DB_PASS=ChangeMe!123
+DB_USER=revora_admin
+DB_PASS=R3v0ra@Admin#2025!
 PORT=3000
 ```
 
@@ -104,9 +106,11 @@ PORT=3000
   `server\instance` syntax here — set `DB_SERVER` to the host only and
   `DB_PORT` to the static TCP port you configured in step 1. For a
   **default instance** (`MSSQLSERVER`), `DB_PORT` is normally `1433`.
-- `.env` is gitignored — never commit real credentials.
+- `.env` is gitignored — it's still worth changing `revora_admin`'s
+  password on any instance that isn't purely local/disposable, since the
+  value above is the literal one baked into `05_security_v2.sql`.
 
-## 6. Run it
+## 5. Run it
 
 ```powershell
 npm start
@@ -122,6 +126,9 @@ Connected to INFODBM_REVORA
 Open:
 - `http://localhost:3000/registrant.html` — registration portal (individual
   or entity, mobile-first form)
+- `http://localhost:3000/login.html` — account login
+- `http://localhost:3000/dashboard.html` — logged-in user dashboard /
+  self-service profile edit requests
 - `http://localhost:3000/admin.html` — admin dashboard: onboarding
   analytics, pending queue with SLA flags, per-applicant review modal
   (approve/reject with notes), applicant directory search, and branch
@@ -131,9 +138,12 @@ Open:
 
 ```
 db/
-  01_schema_v2.sql              full schema (10 tables + triggers) - reference only
-  02_seed_v2.sql                sample seed data - reference only
-  03_additional_objects_v2.sql  views/procs/function the app needs - APPLY THIS
+  01_schema_v2.sql              full schema (10 tables + triggers) - BUILD FIRST
+  02_seed_v2.sql                sample seed data - optional, not needed to run the app
+  03_additional_objects_v2.sql  views/procs/function the app needs
+  04_indexes_and_views_v2.sql   performance indexes + vw_PendingQueue
+  05_security_v2.sql            logins/users/roles/DDM - creates the login the app uses
+  06_profile_edit_workflow_v2.sql  self-service profile edit -> re-approval workflow
 server/
   db.js                         mssql connection pool (reads .env)
   server.js                     Express app, static file serving
@@ -141,25 +151,31 @@ server/
     lookups.js                  GET /api/lookups (roles, categories, sectors, statuses, govt ID types)
     registration.js             POST /api/register
     search.js                   GET /api/search (directory search/filter)
-    admin.js                    queue, analytics, review, approve/reject, TIN update, branch closure
+    admin.js                    queue, analytics, review, approve/reject, branch closure
+    auth.js                     POST /api/login
+    profile.js                  self-service profile edit request + status check
 public/
-  registrant.html / admin.html  front ends
+  registrant.html / admin.html / login.html / dashboard.html   front ends
   js/app.js                     shared client-side logic
   css/style.css
 ```
 
 ## Troubleshooting
 
-- **"Could not find stored procedure ..."** — you skipped step 4, or the
-  `revora_app` login lacks `EXECUTE` on schema `dbo`.
+- **"Could not find stored procedure ..."** — you skipped one of steps in
+  section 3, or ran them out of order (`06` depends on `05`, which depends
+  on `03`/`04`, which depend on `01`).
+- **"Login failed for user 'revora_admin'"** — you skipped `05_security_v2.sql`,
+  or `DB_PASS` doesn't match the password printed by that script.
 - **Node can't connect but SSMS can** — TCP/IP is almost certainly disabled
   on the instance (step 1), or `DB_PORT` doesn't match the instance's
   configured static port.
 - **"UPDATE failed because ... QUOTED_IDENTIFIER ..."** — an object was
-  created outside of `03_additional_objects_v2.sql` under a session with
-  `QUOTED_IDENTIFIER OFF`. Re-run `03_additional_objects_v2.sql` as-is (it
-  sets the correct session options before creating anything).
+  created outside of these scripts under a session with `QUOTED_IDENTIFIER
+  OFF`. Re-run `03_additional_objects_v2.sql` as-is (it sets the correct
+  session options before creating anything).
 - **"Violation of UNIQUE KEY constraint 'UK_Password'"** — two users
   registered with the identical plaintext password (the schema uniques the
   *hashed* password per `Users` design); have the registrant pick a
   different password.
+</content>
