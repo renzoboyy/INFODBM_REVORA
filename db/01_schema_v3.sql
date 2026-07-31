@@ -17,10 +17,9 @@
    Fixed relative to the merge sketch this was drafted from:
      - Entities.BranchID stays a FILTERED unique index (UIX_BranchID_NotNull),
        not a plain UNIQUE constraint. A plain UNIQUE constraint allows only
-       ONE NULL total in SQL Server - since sp_CloseBranch (03_v3) sets
-       Entities.BranchID back to NULL on closure, a plain constraint would
-       let you close exactly one branch ever before every subsequent closure
-       throws a duplicate-key error.
+       ONE NULL total in SQL Server, and BranchID is nullable, so a plain
+       constraint would break the moment a second entity ever went
+       branchless.
    Retained from v2:
      - One representative per entity (filtered unique index on Users.EntityID)
      - GID uniqueness on (GovtType, GovtNo), all CHECK constraints, triggers,

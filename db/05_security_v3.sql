@@ -153,7 +153,6 @@ GO
 
 GRANT EXECUTE ON OBJECT::[dbo].[ApproveUserAccount]  TO [revora_staff_user];
 GRANT EXECUTE ON OBJECT::[dbo].[sp_RejectRegistrant] TO [revora_staff_user];
-GRANT EXECUTE ON OBJECT::[dbo].[sp_CloseBranch]      TO [revora_staff_user];
 GO
 
 GRANT EXECUTE ON OBJECT::[dbo].[sp_RegisterUser]     TO [revora_api_user];
@@ -224,8 +223,7 @@ PRINT ' Database users created (in INFODBM_REVORA):';
 PRINT '   revora_admin_user  -> db_owner + UNMASK';
 PRINT '   revora_staff_user  -> db_datareader';
 PRINT '                         EXECUTE: ApproveUserAccount,';
-PRINT '                                  sp_RejectRegistrant,';
-PRINT '                                  sp_CloseBranch';
+PRINT '                                  sp_RejectRegistrant';
 PRINT '                         DENY DELETE on all tables incl. geography hierarchy';
 PRINT '   revora_api_user    -> db_datareader + db_datawriter';
 PRINT '                         EXECUTE: sp_RegisterUser';

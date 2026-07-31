@@ -219,27 +219,6 @@ async function runSearch() {
   `).join('') || '<tr><td colspan="6" class="muted">No results.</td></tr>';
 }
 
-async function lookupBranch() {
-  const id = document.getElementById('branchIdInput').value.trim();
-  const resultEl = document.getElementById('branchLookupResult');
-  if (!id) return;
-  const res = await fetch(`/api/admin/branches/${id}`);
-  if (!res.ok) {
-    resultEl.innerHTML = '<p class="msg msg-error">Branch not found.</p>';
-    return;
-  }
-  const b = await res.json();
-  resultEl.innerHTML = `
-    <dl class="detail-grid">
-      <dt>Branch ID</dt><dd>${b.BranchID}</dd>
-      <dt>Address</dt><dd>${b.DetailedAddress}, ${b.City} ${b.PostalCode}</dd>
-      <dt>Linked Entity</dt><dd>${b.EntityName || '(none)'}</dd>
-    </dl>
-    <button type="button" class="btn-reject" id="branchCloseBtn">Confirm Close Branch</button>
-  `;
-  document.getElementById('branchCloseBtn').addEventListener('click', () => closeBranch(id));
-}
-
 let sectorMap = null;
 async function ensureSectorMap() {
   if (sectorMap) return sectorMap;
@@ -334,21 +313,6 @@ async function resolveEditRequest(id, action, btn) {
   }
 }
 
-async function closeBranch(id) {
-  const res = await fetch(`/api/admin/branches/${id}/close`, { method: 'POST' });
-  const data = await res.json();
-  if (data.success) {
-    showMessage(`Branch ${id} closed: linked user(s) set to Closed, entity unlinked, branch record deleted.`, 'success');
-    document.getElementById('branchLookupResult').innerHTML = '';
-    document.getElementById('branchIdInput').value = '';
-    loadQueue();
-    runSearch();
-    loadAnalytics();
-  } else {
-    showMessage(data.message, 'error');
-  }
-}
-
 function initAdminNav() {
   const navItems = document.querySelectorAll('.nav-item');
   if (!navItems.length) return;
@@ -382,8 +346,6 @@ function initAdminPage() {
   if (!searchBox) return;
   searchBox.addEventListener('input', debounce(runSearch, 300));
   document.getElementById('statusFilter').addEventListener('change', runSearch);
-
-  document.getElementById('branchLookupBtn').addEventListener('click', lookupBranch);
 
   initAdminNav();
   initQueueTabs();

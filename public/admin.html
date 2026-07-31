@@ -19,7 +19,6 @@
     <div class="nav-group-label">Main</div>
     <a href="#" class="nav-item active" data-panel="dashboard">Dashboard</a>
     <a href="#" class="nav-item" data-panel="individuals">Individuals</a>
-    <a href="#" class="nav-item" data-panel="entities">Entities</a>
     <a href="#" class="nav-item" data-panel="editrequests">Edit Requests <span class="tab-count" id="editReqCount">0</span></a>
     <a href="#" class="nav-item" data-panel="auditlog">Audit Log</a>
 
@@ -94,21 +93,6 @@
           </thead>
           <tbody id="resultsBody"></tbody>
         </table>
-      </div>
-    </section>
-
-    <section id="panel-entities" class="admin-panel hidden">
-      <div class="panel-heading">
-        <h1>Entities</h1>
-        <p class="muted">Branch lookup and closure workflow</p>
-      </div>
-      <div class="card">
-        <p class="muted">Retrieves the branch, closes the affected representative's account, unlinks the entity, then deletes the branch record - all in one transaction.</p>
-        <div class="row">
-          <div><label>Branch ID</label><input id="branchIdInput" placeholder="B00005"></div>
-          <div style="align-self:flex-end;"><button type="button" class="btn-secondary" id="branchLookupBtn">Look Up</button></div>
-        </div>
-        <div id="branchLookupResult"></div>
       </div>
     </section>
 

@@ -4,7 +4,6 @@
      - sp_ResolveAddress                         (geography find-or-create helper)
      - ApproveUserAccount, sp_RejectRegistrant    (approval gatekeepers)
      - sp_RegisterUser                           (registration transaction)
-     - sp_CloseBranch                            (Branch Closure workflow)
      - fn_SLAStatus                              (On Track / Due Soon / Overdue)
      - vw_ApplicantDirectory, vw_ApplicantDetail  (admin search/review screens)
      - vw_PendingThenApproved (INTERSECT), vw_EntityBasedRegistrants (EXCEPT)
@@ -294,51 +293,7 @@ END;
 GO
 
 /* ============================================================================
-   3. sp_CloseBranch - Branch Closure workflow (Section F, queries 17-20).
-   (17) confirm branch exists -> (18) close the affected user's account ->
-   (19) unlink the entity from the branch -> (20) delete the branch record.
-   The shared Address row is left in place (it may still be referenced by
-   other Users/Branch rows now that addresses are shareable).
-   ============================================================================ */
-IF OBJECT_ID('dbo.sp_CloseBranch', 'P') IS NOT NULL DROP PROCEDURE dbo.sp_CloseBranch;
-GO
-CREATE PROCEDURE dbo.sp_CloseBranch
-    @BranchID CHAR(6)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    BEGIN TRY
-        BEGIN TRANSACTION CloseBranch;
-
-        -- (17) confirm the branch exists
-        IF NOT EXISTS (SELECT 1 FROM Branch WHERE BranchID = @BranchID)
-            RAISERROR('Cannot close: branch ''%s'' does not exist.', 16, 1, @BranchID);
-
-        DECLARE @EntityID CHAR(6) = (SELECT EntityID FROM Entities WHERE BranchID = @BranchID);
-
-        -- (18) close the account(s) of the representative(s) tied to this entity
-        UPDATE Users
-        SET StatusID = 6
-        WHERE EntityID = @EntityID AND StatusID NOT IN (5, 6);
-
-        -- (19) unplug the entity from the branch before deleting it
-        UPDATE Entities SET BranchID = NULL WHERE BranchID = @BranchID;
-
-        -- (20) remove the branch record now that nothing references it
-        DELETE FROM Branch WHERE BranchID = @BranchID;
-
-        COMMIT TRANSACTION CloseBranch;
-        PRINT 'Done! Branch ' + @BranchID + ' closed successfully.';
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION CloseBranch;
-        THROW;
-    END CATCH
-END;
-GO
-
-/* ============================================================================
-   4. fn_SLAStatus - SLA / processing-time flag (unchanged from v2)
+   3. fn_SLAStatus - SLA / processing-time flag (unchanged from v2)
    ============================================================================ */
 IF OBJECT_ID('dbo.fn_SLAStatus', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_SLAStatus;
 GO
@@ -359,7 +314,7 @@ END;
 GO
 
 /* ============================================================================
-   5. vw_ApplicantDirectory - flattened search/browse view.
+   4. vw_ApplicantDirectory - flattened search/browse view.
    Unchanged column list from v2 (never selected Address/Branch address
    fields directly - just Entities.BranchID as an identifier).
    ============================================================================ */
@@ -394,7 +349,7 @@ LEFT JOIN dbo.Sectors   sec ON e.SectorID   = sec.SectorID;
 GO
 
 /* ============================================================================
-   6. vw_ApplicantDetail - full applicant profile for admin review (F.14).
+   5. vw_ApplicantDetail - full applicant profile for admin review (F.14).
    Reads City/Province/PostalCode through the new geography hierarchy instead
    of flat columns. Column aliases (HomeCity, HomeProvince, HomePostalCode,
    BranchDetailedAddress, BranchCity, BranchPostalCode) are kept identical to
@@ -450,7 +405,7 @@ LEFT JOIN dbo.Region        brg ON bpv.RegionID  = brg.RegionID;
 GO
 
 /* ============================================================================
-   7. Set-based demo views (Section F, queries 1-2) - unchanged from v2.
+   6. Set-based demo views (Section F, queries 1-2) - unchanged from v2.
    ============================================================================ */
 IF OBJECT_ID('dbo.vw_PendingThenApproved', 'V') IS NOT NULL DROP VIEW dbo.vw_PendingThenApproved;
 GO

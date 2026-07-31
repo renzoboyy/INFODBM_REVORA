@@ -108,7 +108,7 @@ users, each scoped to a different consumer:
 | Login           | Password              | Role                                             |
 |-----------------|------------------------|---------------------------------------------------|
 | `revora_admin`  | `R3v0ra@Admin#2025!`  | `db_owner` + `UNMASK` — full control              |
-| `revora_staff`  | `R3v0ra@Staff#2025!`  | read + approval/rejection/branch-closure SPs only |
+| `revora_staff`  | `R3v0ra@Staff#2025!`  | read + approval/rejection SPs only               |
 | `revora_api`    | `R3v0ra@Api#2025!`    | read + write via SPs only, no DELETE, no DDL      |
 
 It also applies Dynamic Data Masking to `Users.Email`, `Users.PhoneNumber`,
@@ -118,7 +118,7 @@ and `GID.GovtNo` — `revora_staff`/`revora_api` see masked values, only
 `revora_staff` and `revora_api` are intentionally narrow and don't overlap
 (e.g. only `revora_api` can execute `sp_RegisterUser`/`sp_RequestProfileEdit`,
 only `revora_staff` can execute `ApproveUserAccount`/`sp_RejectRegistrant`/
-`sp_CloseBranch`/`sp_ApproveProfileEdit`/`sp_RejectProfileEdit`). The Node
+`sp_ApproveProfileEdit`/`sp_RejectProfileEdit`). The Node
 app in this repo is a single process sharing one connection pool across
 *all* of those routes, so **it must connect as `revora_admin`** — no single
 scoped login covers everything the app calls end to end.

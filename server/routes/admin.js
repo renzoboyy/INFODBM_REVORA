@@ -142,40 +142,4 @@ router.post('/admin/users/:id/reject', async (req, res) => {
   }
 });
 
-router.get('/admin/branches/:id', async (req, res) => {
-  try {
-    const pool = await poolPromise;
-    const request = pool.request();
-    request.input('BranchID', sql.Char(6), req.params.id);
-    const result = await request.query(`
-      SELECT br.BranchID, a.DetailedAddress, cm.CityName AS City, bg.PostalCode,
-             e.EntityID, e.EntityName, e.TIN
-      FROM dbo.Branch br
-      JOIN dbo.Address a ON br.AddressID = a.AddressID
-      JOIN dbo.Barangay bg ON a.BarangayID = bg.BarangayID
-      JOIN dbo.CityMunicipality cm ON bg.CityID = cm.CityID
-      LEFT JOIN dbo.Entities e ON e.BranchID = br.BranchID
-      WHERE br.BranchID = @BranchID
-    `);
-    if (!result.recordset.length) {
-      return res.status(404).json({ message: 'Branch not found.' });
-    }
-    res.json(result.recordset[0]);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-router.post('/admin/branches/:id/close', async (req, res) => {
-  try {
-    const pool = await poolPromise;
-    const request = pool.request();
-    request.input('BranchID', sql.Char(6), req.params.id);
-    await request.execute('dbo.sp_CloseBranch');
-    res.json({ success: true });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
 module.exports = router;
