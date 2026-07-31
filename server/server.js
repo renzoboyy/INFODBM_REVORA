@@ -7,6 +7,8 @@ const searchRoutes = require('./routes/search');
 const registrationRoutes = require('./routes/registration');
 const adminRoutes = require('./routes/admin');
 const lookupRoutes = require('./routes/lookups');
+const authRoutes = require('./routes/auth');
+const profileRoutes = require('./routes/profile');
 
 const app = express();
 
@@ -18,6 +20,8 @@ app.use('/api', searchRoutes);
 app.use('/api', registrationRoutes);
 app.use('/api', adminRoutes);
 app.use('/api', lookupRoutes);
+app.use('/api', authRoutes);
+app.use('/api', profileRoutes);
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {

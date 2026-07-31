@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>REVORA — Login</title>
+  <meta name="description" content="Log in to your approved Revora account to access your entity dashboard.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/register.css">
+</head>
+<body class="reg-body">
+
+  <header class="reg-header">
+    <a href="index.html" class="reg-logo">
+      <span class="reg-logo-mark">&#x2573;</span>
+      <span class="reg-logo-text">Revora</span>
+    </a>
+    <a href="registrant.html" class="reg-admin-link">Register instead &rarr;</a>
+  </header>
+
+  <main class="reg-main">
+    <div class="reg-step" id="loginStep">
+      <div class="reg-step-header">
+        <div class="reg-step-tag">Account Access</div>
+        <h1 class="reg-step-title">Welcome back</h1>
+        <p class="reg-step-sub">Log in with your approved Revora account to view your entity dashboard.</p>
+      </div>
+
+      <form id="loginForm" class="reg-form-section">
+        <div class="reg-field">
+          <label for="fi-username">Username <span class="req">*</span></label>
+          <input id="fi-username" name="username" maxlength="10" placeholder="Enter your username" required autocomplete="username">
+        </div>
+        <div class="reg-field">
+          <label for="fi-password">Password <span class="req">*</span></label>
+          <div class="input-wrapper">
+            <input id="fi-password" type="password" name="password" placeholder="Enter your password" required autocomplete="current-password">
+            <button type="button" class="toggle-pw" id="togglePw" aria-label="Toggle password">&#x1F441;</button>
+          </div>
+        </div>
+      </form>
+
+      <div id="message"></div>
+
+      <div class="reg-nav">
+        <a href="index.html" class="reg-btn reg-btn-ghost">&larr; Back to Home</a>
+        <button type="button" class="reg-btn reg-btn-primary" id="loginBtn">Log In</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>

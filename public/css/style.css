@@ -37,6 +37,213 @@ main {
   padding: 24px;
 }
 
+/* ===== Admin shell: sidebar + topbar ===== */
+
+body.admin-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  flex: 0 0 220px;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  padding: 18px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px 18px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--text);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.brand-name { font-weight: 700; font-size: 1.05rem; }
+
+.pill-badge {
+  margin-left: auto;
+  background: var(--text);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.sidebar-nav { display: flex; flex-direction: column; padding: 0 10px; }
+
+.nav-group-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin: 14px 8px 6px;
+}
+
+.nav-item {
+  display: block;
+  padding: 9px 10px;
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.nav-item:hover { background: var(--bg); }
+.nav-item.active { background: var(--brand); color: white; }
+
+.admin-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.registrant-link { color: var(--brand-dark); font-size: 0.85rem; text-decoration: none; font-weight: 600; }
+.registrant-link:hover { text-decoration: underline; }
+
+.admin-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.admin-shell main { max-width: none; padding: 20px 0; margin: 0; }
+
+.panel-heading h1 { font-size: 1.5rem; margin: 0 0 4px; }
+.panel-heading { margin-bottom: 18px; padding: 0 16px; }
+
+.admin-panel { padding: 0 16px 20px; }
+
+/* ===== Dashboard: two-pane review layout ===== */
+
+.review-layout {
+  display: grid;
+  grid-template-columns: minmax(380px, 32%) 1fr;
+  gap: 18px;
+  margin-top: 22px;
+  align-items: start;
+  width: 100%;
+}
+
+.review-list-pane {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  overflow: hidden;
+}
+
+.tab-strip {
+  display: flex;
+  gap: 6px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-pill {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 11px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.tab-pill.active { background: var(--text); color: white; border-color: var(--text); }
+
+.tab-count {
+  background: rgba(0,0,0,0.08);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.8rem;
+}
+
+.tab-pill.active .tab-count { background: rgba(255,255,255,0.25); }
+
+.applicant-list { max-height: 775px; overflow-y: auto; }
+
+.applicant-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 17px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.applicant-row:last-child { border-bottom: none; }
+.applicant-row:hover { background: var(--bg); }
+.applicant-row.selected { background: #eef1f0; }
+
+.applicant-avatar {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--brand-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.applicant-info { min-width: 0; }
+.applicant-name { font-weight: 600; font-size: 1rem; }
+.applicant-email {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.review-detail-pane {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  padding: 25px;
+  min-height: 375px;
+}
+
+.placeholder-text { text-align: center; margin-top: 120px; }
+
+.stat-grid-secondary { margin-top: 12px; }
+.stat-tile.stat-tile-compact .stat-value { font-size: 1.1rem; }
+
 .card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -170,3 +377,5 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: u
 
 .stat-tile .stat-value { font-size: 1.4rem; font-weight: 700; color: var(--brand-dark); }
 .stat-tile .stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+
+

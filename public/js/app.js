@@ -13,117 +13,92 @@ function debounce(fn, delay) {
   };
 }
 
-function fillSelect(select, items, valueKey, labelKey, placeholder) {
-  select.innerHTML = `<option value="">${placeholder}</option>` +
-    items.map(i => `<option value="${i[valueKey]}">${i[labelKey]}</option>`).join('');
-}
-
-const GOVT_HINTS = {
-  'PhilSys': '16 digits, numbers only.',
-  'Passport': '6-12 alphanumeric characters.',
-  'Driver License': 'Format: A00-00-000000',
-  'UMID': '12 digits, numbers only.',
-  'PRC ID': '7 digits, numbers only.'
-};
-
-async function initRegistrantPage() {
-  const form = document.getElementById('registerForm');
-  if (!form) return;
-
-  const lookups = await (await fetch('/api/lookups')).json();
-  fillSelect(document.getElementById('categoryId'), lookups.categories, 'CategoryID', 'CategoryName', 'Select Category');
-  fillSelect(document.getElementById('roleId'), lookups.roles, 'RoleID', 'RoleName', 'Select Role');
-  fillSelect(document.getElementById('sectorId'), lookups.sectors, 'SectorID', 'SectorName', 'Select Sector');
-
-  const govtSel = document.getElementById('govtType');
-  govtSel.innerHTML = '<option value="">Select ID Type</option>' +
-    lookups.govtTypes.map(t => `<option value="${t}">${t}</option>`).join('');
-  govtSel.addEventListener('change', () => {
-    document.getElementById('govtHint').textContent = GOVT_HINTS[govtSel.value] || '';
-  });
-
-  document.querySelectorAll('input[name="accountType"]').forEach(radio => {
-    radio.addEventListener('change', e => {
-      const entitySection = document.getElementById('entitySection');
-      const showEntity = e.target.value === 'Entity';
-      entitySection.classList.toggle('hidden', !showEntity);
-      document.getElementById('entityName').required = showEntity;
-      document.getElementById('tin').required = showEntity;
-      document.getElementById('branchCode').required = showEntity;
-      document.getElementById('branchDetailedAddress').required = showEntity;
-      document.getElementById('branchCity').required = showEntity;
-      document.getElementById('branchPostalCode').required = showEntity;
-    });
-  });
-
-  form.addEventListener('submit', async e => {
-    e.preventDefault();
-    const fd = new FormData(form);
-    const payload = Object.fromEntries(fd.entries());
-    payload.roleId = payload.roleId === '1' ? true : payload.roleId === '0' ? false : payload.roleId;
-
-    const res = await fetch('/api/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (data.success) {
-      showMessage(`${data.message} Reference ID: ${data.userId}`, 'success');
-      form.reset();
-      document.getElementById('entitySection').classList.add('hidden');
-    } else {
-      showMessage(data.message, 'error');
-    }
-  });
-}
-
 const SLA_BADGE = { 'On Track': 'badge-green', 'Due Soon': 'badge-yellow', 'Overdue': 'badge-red', 'N/A': 'badge-gray' };
 const STATUS_BADGE = {
   Pending: 'badge-yellow', Approved: 'badge-green', Rejected: 'badge-red',
   Suspended: 'badge-gray', Deleted: 'badge-red', Closed: 'badge-gray'
 };
 
+let currentTabStatus = '1';
+let selectedApplicantId = null;
+
 async function loadAnalytics() {
   const grid = document.getElementById('statGrid');
+  const secondaryGrid = document.getElementById('statGridSecondary');
   if (!grid) return;
   const a = await (await fetch('/api/admin/analytics')).json();
-  const tiles = [
+
+  const primaryTiles = [
     ['Pending Applications', a.pendingApplications],
-    ['Oldest Pending', a.oldestPending ? new Date(a.oldestPending).toLocaleDateString() : '-'],
-    ['Newest Pending', a.newestPending ? new Date(a.newestPending).toLocaleDateString() : '-'],
-    ['Avg. Days to Approve', a.avgDaysToApprove ?? '-'],
-    ['Pending -> Approved (INTERSECT)', a.pendingThenApprovedCount],
-    ['Entity-Based Registrants (EXCEPT)', a.entityBasedCount]
+    ['Oldest Application', a.oldestPending ? new Date(a.oldestPending).toLocaleString() : '-'],
+    ['Newest Application', a.newestPending ? new Date(a.newestPending).toLocaleString() : '-'],
+    ['Average Approval Time', a.avgDaysToApprove != null ? `${a.avgDaysToApprove} Days` : '-']
   ];
-  grid.innerHTML = tiles.map(([label, value]) => `
+  grid.innerHTML = primaryTiles.map(([label, value]) => `
     <div class="stat-tile">
       <div class="stat-value">${value}</div>
       <div class="stat-label">${label}</div>
     </div>
   `).join('');
+
+  const secondaryTiles = [
+    ['Pending -> Approved (INTERSECT)', a.pendingThenApprovedCount],
+    ['Entity-Based Registrants (EXCEPT)', a.entityBasedCount]
+  ];
+  secondaryGrid.innerHTML = secondaryTiles.map(([label, value]) => `
+    <div class="stat-tile stat-tile-compact">
+      <div class="stat-value">${value}</div>
+      <div class="stat-label">${label}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('countPending').textContent = a.pendingApplications;
+  document.getElementById('countApproved').textContent = a.approvedCount;
+  document.getElementById('countRejected').textContent = a.rejectedCount;
 }
 
-async function loadQueue() {
-  const body = document.getElementById('queueBody');
-  if (!body) return;
-  const rows = await (await fetch('/api/admin/queue')).json();
-  body.innerHTML = rows.map(r => `
-    <tr>
-      <td>${r.UserID}</td>
-      <td>${r.FullName}</td>
-      <td>${r.EntityName || '-'}</td>
-      <td>${new Date(r.CreatedAt).toLocaleString()}</td>
-      <td><span class="badge ${SLA_BADGE[r.SLAFlag] || 'badge-gray'}">${r.SLAFlag}</span></td>
-      <td class="actions">
-        <button class="btn-primary" data-action="review" data-id="${r.UserID}">Review</button>
-      </td>
-    </tr>
-  `).join('') || '<tr><td colspan="6" class="muted">No pending registrations.</td></tr>';
+function initials(fullName) {
+  return fullName.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+}
 
-  body.querySelectorAll('button[data-action="review"]').forEach(btn => {
-    btn.addEventListener('click', () => openReview(btn.dataset.id));
+async function loadApplicantList(status) {
+  const list = document.getElementById('applicantList');
+  if (!list) return;
+
+  let rows;
+  if (status === '1') {
+    rows = await (await fetch('/api/admin/queue')).json();
+  } else {
+    const res = await fetch(`/api/search?q=&status=${status}`);
+    rows = await res.json();
+  }
+
+  list.innerHTML = rows.map(r => `
+    <div class="applicant-row" data-id="${r.UserID}">
+      <div class="applicant-avatar">${initials(r.FullName)}</div>
+      <div class="applicant-info">
+        <div class="applicant-name">${r.FullName}</div>
+        <div class="applicant-email">${r.Email}</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:6px;flex-shrink:0;">
+        ${r.QueueReason === 'Profile Edit' ? `<span class="badge badge-gray">Edit</span>` : ''}
+        ${r.SLAFlag && r.SLAFlag !== 'N/A' ? `<span class="badge ${SLA_BADGE[r.SLAFlag] || 'badge-gray'}">${r.SLAFlag}</span>` : ''}
+      </div>
+    </div>
+  `).join('') || '<p class="muted" style="padding:14px;">No registrations in this status.</p>';
+
+  list.querySelectorAll('.applicant-row').forEach(row => {
+    row.addEventListener('click', () => selectApplicant(row.dataset.id));
   });
+
+  if (selectedApplicantId && rows.some(r => r.UserID === selectedApplicantId)) {
+    const row = list.querySelector(`.applicant-row[data-id="${selectedApplicantId}"]`);
+    if (row) row.classList.add('selected');
+  } else {
+    selectedApplicantId = null;
+    document.getElementById('reviewDetailPane').innerHTML =
+      '<p class="muted placeholder-text">Select registration to view applicant details.</p>';
+  }
 }
 
 async function handleDecision(userId, action) {
@@ -137,8 +112,8 @@ async function handleDecision(userId, action) {
   const data = await res.json();
   if (data.success) {
     showMessage(`User ${userId} ${action}d.`, 'success');
-    closeReview();
-    loadQueue();
+    selectedApplicantId = null;
+    loadApplicantList(currentTabStatus);
     runSearch();
     loadAnalytics();
   } else {
@@ -151,19 +126,19 @@ function addr(detailed, city, province, postal) {
   return `${detailed}, ${city}${province ? ', ' + province : ''} ${postal || ''}`.trim();
 }
 
-async function openReview(userId) {
-  const overlay = document.getElementById('reviewOverlay');
-  const body = document.getElementById('reviewBody');
+async function selectApplicant(userId) {
+  selectedApplicantId = userId;
+  document.querySelectorAll('.applicant-row').forEach(row => {
+    row.classList.toggle('selected', row.dataset.id === userId);
+  });
+
+  const pane = document.getElementById('reviewDetailPane');
   const res = await fetch(`/api/admin/users/${userId}`);
   if (!res.ok) {
     showMessage('Could not load applicant details.', 'error');
     return;
   }
   const a = await res.json();
-
-  document.getElementById('reviewTitle').textContent =
-    `${a.FirstName} ${a.MiddleName ? a.MiddleName + ' ' : ''}${a.LastName}${a.Suffix ? ' ' + a.Suffix : ''}`;
-  document.getElementById('reviewNotes').value = '';
 
   const personalAddr = addr(a.DetailedHome, a.HomeCity, a.HomeProvince, a.HomePostalCode);
   const branchAddr = addr(a.BranchDetailedAddress, a.BranchCity, null, a.BranchPostalCode);
@@ -173,14 +148,25 @@ async function openReview(userId) {
     entityRows = `
       <div class="section-label">Entity Information</div>
       <dt>Entity Name</dt><dd>${a.EntityName}</dd>
-      <dt>TIN</dt><dd>${a.TIN}</dd>
+      <dt>TIN</dt><dd>${(a.TIN || '').trim()}</dd>
       <dt>Sector</dt><dd>${a.SectorName}</dd>
       <dt>Branch ID / Code</dt><dd>${a.BranchID || '-'} / ${a.BranchCode || '-'}</dd>
       <dt>Branch Address</dt><dd>${branchAddr || '-'}</dd>
     `;
   }
 
-  body.innerHTML = `
+  const actionsHtml = a.StatusID === 1 ? `
+    <div class="modal-footer">
+      <textarea id="reviewNotes" rows="2" placeholder="Optional notes (shown in the audit log)..."></textarea>
+      <div class="actions" style="margin-top:10px;">
+        <button type="button" class="btn-approve" id="reviewApprove">Approve</button>
+        <button type="button" class="btn-reject" id="reviewReject">Reject</button>
+      </div>
+    </div>
+  ` : '';
+
+  pane.innerHTML = `
+    <h2>${a.FirstName} ${a.MiddleName ? a.MiddleName + ' ' : ''}${a.LastName}${a.Suffix ? ' ' + a.Suffix : ''}</h2>
     <dl class="detail-grid">
       <div class="section-label">Account</div>
       <dt>User ID</dt><dd>${a.UserID}</dd>
@@ -203,16 +189,13 @@ async function openReview(userId) {
 
       ${entityRows}
     </dl>
+    ${actionsHtml}
   `;
 
-  document.getElementById('reviewApprove').onclick = () => handleDecision(a.UserID, 'approve');
-  document.getElementById('reviewReject').onclick = () => handleDecision(a.UserID, 'reject');
-
-  overlay.classList.remove('hidden');
-}
-
-function closeReview() {
-  document.getElementById('reviewOverlay').classList.add('hidden');
+  if (a.StatusID === 1) {
+    document.getElementById('reviewApprove').onclick = () => handleDecision(a.UserID, 'approve');
+    document.getElementById('reviewReject').onclick = () => handleDecision(a.UserID, 'reject');
+  }
 }
 
 async function runSearch() {
@@ -256,6 +239,100 @@ async function lookupBranch() {
   document.getElementById('branchCloseBtn').addEventListener('click', () => closeBranch(id));
 }
 
+let sectorMap = null;
+async function ensureSectorMap() {
+  if (sectorMap) return sectorMap;
+  const res = await fetch('/api/lookups');
+  const data = await res.json();
+  sectorMap = {};
+  (data.sectors || []).forEach(s => { sectorMap[s.SectorID] = s.SectorName; });
+  return sectorMap;
+}
+
+const EDIT_DIFF_FIELDS = [
+  { cur: 'CurrentEmail', new: 'NewEmail', label: 'Email' },
+  { cur: 'CurrentPhoneNumber', new: 'NewPhoneNumber', label: 'Phone Number' },
+  { cur: 'CurrentDetailedHome', new: 'NewDetailedHome', label: 'Home Address' },
+  { cur: 'CurrentCity', new: 'NewCity', label: 'City' },
+  { cur: 'CurrentProvince', new: 'NewProvince', label: 'Province' },
+  { cur: 'CurrentPostalCode', new: 'NewPostalCode', label: 'Postal Code' },
+  { cur: 'CurrentEntityName', new: 'NewEntityName', label: 'Entity Name' },
+  { cur: 'CurrentTIN', new: 'NewTIN', label: 'TIN' },
+  { cur: 'CurrentSectorID', new: 'NewSectorID', label: 'Sector', resolve: v => (sectorMap && sectorMap[v]) || v },
+  { cur: 'CurrentBranchAddress', new: 'NewBranchDetailedAddr', label: 'Branch Address' },
+  { cur: 'CurrentBranchCity', new: 'NewBranchCity', label: 'Branch City' },
+  { cur: 'CurrentBranchPostalCode', new: 'NewBranchPostalCode', label: 'Branch Postal Code' }
+];
+
+function renderEditRequestCard(r) {
+  const rows = EDIT_DIFF_FIELDS
+    .filter(f => r[f.new] !== null && r[f.new] !== undefined)
+    .map(f => {
+      const curVal = f.resolve ? f.resolve(r[f.cur]) : (r[f.cur] || '-');
+      const newVal = f.resolve ? f.resolve(r[f.new]) : r[f.new];
+      return `<tr><td>${f.label}</td><td>${curVal}</td><td><strong>${newVal}</strong></td></tr>`;
+    }).join('');
+
+  return `
+    <div class="card">
+      <h2>Request ${r.EditRequestID} &mdash; ${r.UserID}</h2>
+      <p class="muted">Submitted ${new Date(r.SubmittedAt).toLocaleString()}</p>
+      <table>
+        <thead><tr><th>Field</th><th>Current</th><th>Proposed</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="3" class="muted">No fields changed.</td></tr>'}</tbody>
+      </table>
+      <textarea class="edit-req-notes" rows="2" placeholder="Optional notes (shown in the audit log)..."></textarea>
+      <div class="actions" style="margin-top:10px;">
+        <button type="button" class="btn-approve" data-action="approve" data-id="${r.EditRequestID}">Approve</button>
+        <button type="button" class="btn-reject" data-action="reject" data-id="${r.EditRequestID}">Reject</button>
+      </div>
+    </div>
+  `;
+}
+
+async function loadEditRequests() {
+  const container = document.getElementById('editRequestsList');
+  if (!container) return;
+
+  await ensureSectorMap();
+  const res = await fetch('/api/admin/edit-requests');
+  const rows = await res.json();
+
+  container.innerHTML = rows.map(renderEditRequestCard).join('') ||
+    '<div class="card"><p class="muted placeholder-text">No profile edit requests awaiting review.</p></div>';
+
+  const countEl = document.getElementById('editReqCount');
+  if (countEl) countEl.textContent = rows.length;
+
+  container.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => resolveEditRequest(btn.dataset.id, btn.dataset.action, btn));
+  });
+}
+
+async function resolveEditRequest(id, action, btn) {
+  const card = btn.closest('.card');
+  const notes = card.querySelector('.edit-req-notes').value.trim();
+  card.querySelectorAll('button').forEach(b => b.disabled = true);
+
+  const res = await fetch(`/api/admin/edit-requests/${id}/${action}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notes: notes || undefined })
+  });
+  const data = await res.json();
+
+  if (data.success) {
+    showMessage(`Edit request ${id} ${action}d.`, 'success');
+    loadEditRequests();
+    loadApplicantList(currentTabStatus);
+    runSearch();
+    loadAnalytics();
+  } else {
+    showMessage(data.message, 'error');
+    card.querySelectorAll('button').forEach(b => b.disabled = false);
+  }
+}
+
 async function closeBranch(id) {
   const res = await fetch(`/api/admin/branches/${id}/close`, { method: 'POST' });
   const data = await res.json();
@@ -271,25 +348,51 @@ async function closeBranch(id) {
   }
 }
 
+function initAdminNav() {
+  const navItems = document.querySelectorAll('.nav-item');
+  if (!navItems.length) return;
+  navItems.forEach(item => {
+    item.addEventListener('click', e => {
+      e.preventDefault();
+      navItems.forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      document.querySelectorAll('.admin-panel').forEach(panel => panel.classList.add('hidden'));
+      document.getElementById(`panel-${item.dataset.panel}`).classList.remove('hidden');
+    });
+  });
+}
+
+function initQueueTabs() {
+  const tabs = document.querySelectorAll('.tab-pill');
+  if (!tabs.length) return;
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentTabStatus = tab.dataset.status;
+      selectedApplicantId = null;
+      loadApplicantList(currentTabStatus);
+    });
+  });
+}
+
 function initAdminPage() {
   const searchBox = document.getElementById('searchBox');
   if (!searchBox) return;
   searchBox.addEventListener('input', debounce(runSearch, 300));
   document.getElementById('statusFilter').addEventListener('change', runSearch);
 
-  document.getElementById('reviewClose').addEventListener('click', closeReview);
-  document.getElementById('reviewOverlay').addEventListener('click', e => {
-    if (e.target.id === 'reviewOverlay') closeReview();
-  });
-
   document.getElementById('branchLookupBtn').addEventListener('click', lookupBranch);
 
+  initAdminNav();
+  initQueueTabs();
+
   loadAnalytics();
-  loadQueue();
+  loadApplicantList(currentTabStatus);
   runSearch();
+  loadEditRequests();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  initRegistrantPage();
   initAdminPage();
 });

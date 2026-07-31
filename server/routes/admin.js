@@ -6,10 +6,9 @@ router.get('/admin/queue', async (req, res) => {
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(`
-      SELECT UserID, FullName, EntityName, CreatedAt,
-             dbo.fn_SLAStatus(CreatedAt, StatusID) AS SLAFlag
-      FROM dbo.vw_ApplicantDirectory
-      WHERE StatusID = 1
+      SELECT userID AS UserID, FirstName + ' ' + LastName AS FullName, Email, CreatedAt,
+             SLABucket AS SLAFlag, QueueReason
+      FROM dbo.vw_PendingQueueClassified
       ORDER BY CreatedAt ASC
     `);
     res.json(result.recordset);
@@ -18,12 +17,57 @@ router.get('/admin/queue', async (req, res) => {
   }
 });
 
+// Profile-edit resolution workflow (dbo.ProfileEditRequests)
+router.get('/admin/edit-requests', async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(
+      'SELECT * FROM dbo.vw_PendingProfileEdits ORDER BY SubmittedAt ASC'
+    );
+    res.json(result.recordset);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/admin/edit-requests/:id/approve', async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const request = pool.request();
+    request.input('EditRequestID', sql.Char(6), req.params.id);
+    request.input('ApprovalNotes', sql.VarChar(250), req.body.notes || 'Approved via admin dashboard.');
+    await request.execute('dbo.sp_ApproveProfileEdit');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+router.post('/admin/edit-requests/:id/reject', async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const request = pool.request();
+    request.input('EditRequestID', sql.Char(6), req.params.id);
+    request.input('RejectionNotes', sql.VarChar(250), req.body.notes || null);
+    await request.execute('dbo.sp_RejectProfileEdit');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // Section F queries (9)-(13): queue count, oldest/newest pending, avg approval time
 router.get('/admin/analytics', async (req, res) => {
   try {
     const pool = await poolPromise;
-    const [count, minMax, avgTime, pendingThenApproved, entityBased] = await Promise.all([
+    const [count, statusCounts, minMax, avgTime, pendingThenApproved, entityBased] = await Promise.all([
       pool.request().query('SELECT COUNT(*) AS PendingApplications FROM Users WHERE StatusID = 1'),
+      pool.request().query(`
+        SELECT
+          SUM(CASE WHEN StatusID = 2 THEN 1 ELSE 0 END) AS ApprovedCount,
+          SUM(CASE WHEN StatusID = 3 THEN 1 ELSE 0 END) AS RejectedCount
+        FROM Users
+      `),
       pool.request().query('SELECT MIN(CreatedAt) AS OldestPending, MAX(CreatedAt) AS NewestPending FROM Users WHERE StatusID = 1'),
       pool.request().query(`
         SELECT CAST(AVG(DATEDIFF(HOUR, CreatedAt, ApprovedAt) * 1.00 / 24) AS DECIMAL(3,2)) AS AvgDaysToApprove
@@ -34,6 +78,8 @@ router.get('/admin/analytics', async (req, res) => {
     ]);
     res.json({
       pendingApplications: count.recordset[0].PendingApplications,
+      approvedCount: statusCounts.recordset[0].ApprovedCount,
+      rejectedCount: statusCounts.recordset[0].RejectedCount,
       oldestPending: minMax.recordset[0].OldestPending,
       newestPending: minMax.recordset[0].NewestPending,
       avgDaysToApprove: avgTime.recordset[0].AvgDaysToApprove,
@@ -90,19 +136,6 @@ router.post('/admin/users/:id/reject', async (req, res) => {
     request.input('TargetUserID', sql.Char(6), req.params.id);
     request.input('RejectionNotes', sql.VarChar(250), req.body.notes || null);
     await request.execute('dbo.sp_RejectRegistrant');
-    res.json({ success: true });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-router.patch('/admin/users/:id/tin', async (req, res) => {
-  try {
-    const pool = await poolPromise;
-    const request = pool.request();
-    request.input('TargetUserID', sql.Char(6), req.params.id);
-    request.input('NewTIN', sql.NChar(11), req.body.tin);
-    await request.execute('dbo.sp_UpdateEntityTIN');
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

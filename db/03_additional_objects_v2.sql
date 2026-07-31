@@ -4,7 +4,6 @@
      - ApproveUserAccount, sp_RejectRegistrant  (approval gatekeepers)
      - sp_RegisterUser                          (registration transaction)
      - sp_CloseBranch                           (Branch Closure workflow)
-     - sp_UpdateEntityTIN                       (TIN correction, query F.8)
      - fn_SLAStatus                             (On Track / Due Soon / Overdue)
      - vw_ApplicantDirectory, vw_ApplicantDetail (admin search/review screens)
      - vw_PendingThenApproved (INTERSECT), vw_EntityBasedRegistrants (EXCEPT)
@@ -142,26 +141,41 @@ BEGIN
         DECLARE @BranchID  CHAR(6);
         DECLARE @EntityID  CHAR(6);
 
-        SET @AddressID = 'A' + RIGHT('00000' + CAST((SELECT COUNT(*) + 1 FROM Address) AS VARCHAR), 5);
+        /* ── Address ── */
+        SET @AddressID = 'A' + RIGHT('00000' + CAST(
+            ISNULL((SELECT MAX(CAST(SUBSTRING(AddressID, 2, 5) AS INT)) FROM dbo.Address), 0) + 1
+        AS VARCHAR), 5);
         INSERT INTO dbo.Address (AddressID, DetailedHome, City, Province, PostalCode)
         VALUES (@AddressID, @DetailedHome, @City, @Province, @PostalCode);
 
-        SET @GovtID = 'G' + RIGHT('00000' + CAST((SELECT COUNT(*) + 1 FROM GID) AS VARCHAR), 5);
+        /* ── Government ID ── */
+        SET @GovtID = 'G' + RIGHT('00000' + CAST(
+            ISNULL((SELECT MAX(CAST(SUBSTRING(GovtID, 2, 5) AS INT)) FROM dbo.GID), 0) + 1
+        AS VARCHAR), 5);
         INSERT INTO dbo.GID (GovtID, GovtType, GovtNo)
         VALUES (@GovtID, @GovtType, @GovtNo);
 
         IF @AccountType = 'Entity'
         BEGIN
-            SET @BranchID = 'B' + RIGHT('00000' + CAST((SELECT COUNT(*) + 1 FROM Branches) AS VARCHAR), 5);
+            /* ── Branch ── */
+            SET @BranchID = 'B' + RIGHT('00000' + CAST(
+                ISNULL((SELECT MAX(CAST(SUBSTRING(BranchID, 2, 5) AS INT)) FROM dbo.Branches), 0) + 1
+            AS VARCHAR), 5);
             INSERT INTO dbo.Branches (BranchID, BranchCode, DetailedAddress, City, PostalCode)
             VALUES (@BranchID, @BranchCode, @BranchDetailedAddr, @BranchCity, @BranchPostalCode);
 
-            SET @EntityID = 'E' + RIGHT('00000' + CAST((SELECT COUNT(*) + 1 FROM Entities) AS VARCHAR), 5);
+            /* ── Entity ── */
+            SET @EntityID = 'E' + RIGHT('00000' + CAST(
+                ISNULL((SELECT MAX(CAST(SUBSTRING(EntityID, 2, 5) AS INT)) FROM dbo.Entities), 0) + 1
+            AS VARCHAR), 5);
             INSERT INTO dbo.Entities (EntityID, EntityName, TIN, SectorID, BranchID)
             VALUES (@EntityID, @EntityName, @TIN, @SectorID, @BranchID);
         END
 
-        SET @NewUserID = 'U' + RIGHT('00000' + CAST((SELECT COUNT(*) + 1 FROM Users) AS VARCHAR), 5);
+        /* ── User ── */
+        SET @NewUserID = 'U' + RIGHT('00000' + CAST(
+            ISNULL((SELECT MAX(CAST(SUBSTRING(UserID, 2, 5) AS INT)) FROM dbo.Users), 0) + 1
+        AS VARCHAR), 5);
 
         INSERT INTO dbo.Users (
             UserID, Username, Password, FirstName, MiddleName, LastName, Suffix,
@@ -182,6 +196,7 @@ BEGIN
         THROW;
     END CATCH
 END;
+
 GO
 
 /* ============================================================================
@@ -227,27 +242,7 @@ END;
 GO
 
 /* ============================================================================
-   4. sp_UpdateEntityTIN - Section F, query 8 (Update a TIN of a user's entity)
-   ============================================================================ */
-IF OBJECT_ID('dbo.sp_UpdateEntityTIN', 'P') IS NOT NULL DROP PROCEDURE dbo.sp_UpdateEntityTIN;
-GO
-CREATE PROCEDURE dbo.sp_UpdateEntityTIN
-    @TargetUserID CHAR(6),
-    @NewTIN       NCHAR(11)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    DECLARE @EntityID CHAR(6) = (SELECT EntityID FROM Users WHERE UserID = @TargetUserID);
-
-    IF @EntityID IS NULL
-        RAISERROR('User ''%s'' has no linked entity to update.', 16, 1, @TargetUserID);
-
-    UPDATE Entities SET TIN = @NewTIN WHERE EntityID = @EntityID;
-END;
-GO
-
-/* ============================================================================
-   5. fn_SLAStatus - SLA / processing-time flag
+   4. fn_SLAStatus - SLA / processing-time flag
    ============================================================================ */
 IF OBJECT_ID('dbo.fn_SLAStatus', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_SLAStatus;
 GO
@@ -268,7 +263,7 @@ END;
 GO
 
 /* ============================================================================
-   6. vw_ApplicantDirectory - flattened search/browse view (flat address)
+   5. vw_ApplicantDirectory - flattened search/browse view (flat address)
    ============================================================================ */
 IF OBJECT_ID('dbo.vw_ApplicantDirectory', 'V') IS NOT NULL DROP VIEW dbo.vw_ApplicantDirectory;
 GO
@@ -301,7 +296,7 @@ LEFT JOIN dbo.Sectors   sec ON e.SectorID   = sec.SectorID;
 GO
 
 /* ============================================================================
-   7. vw_ApplicantDetail - full applicant profile for admin review (F.14)
+   6. vw_ApplicantDetail - full applicant profile for admin review (F.14)
    ============================================================================ */
 IF OBJECT_ID('dbo.vw_ApplicantDetail', 'V') IS NOT NULL DROP VIEW dbo.vw_ApplicantDetail;
 GO
@@ -332,7 +327,7 @@ LEFT JOIN dbo.Branches  br  ON e.BranchID   = br.BranchID;
 GO
 
 /* ============================================================================
-   8. Set-based demo views (Section F, queries 1-2)
+   7. Set-based demo views (Section F, queries 1-2)
    ============================================================================ */
 IF OBJECT_ID('dbo.vw_PendingThenApproved', 'V') IS NOT NULL DROP VIEW dbo.vw_PendingThenApproved;
 GO

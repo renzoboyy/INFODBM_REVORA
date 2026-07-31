@@ -126,9 +126,14 @@ CREATE TABLE [dbo].[Entities](
     [BranchID]   CHAR(6)      NULL,
     CONSTRAINT [PK_Entities]   PRIMARY KEY CLUSTERED ([EntityID] ASC),
     CONSTRAINT [UK_TIN]        UNIQUE ([TIN]),
-    CONSTRAINT [UK_Branches]   UNIQUE ([BranchID]),
     CONSTRAINT [CK_TIN_Length] CHECK (LEN(RTRIM([TIN])) = 11)
 );
+GO
+
+/* One branch per entity: unique BranchID among non-NULL values only */
+CREATE UNIQUE NONCLUSTERED INDEX [UIX_BranchID_NotNull]
+    ON [dbo].[Entities] ([BranchID] ASC)
+    WHERE ([BranchID] IS NOT NULL);
 GO
 
 /* ============================================================================
@@ -262,7 +267,8 @@ BEGIN
     INSERT INTO AuditLog (LogID, UserID, AdminAction, ActionTimestamp, Remarks)
     SELECT
         'L' + RIGHT('00000000' + CAST(
-            (SELECT COUNT(*) + 1 FROM AuditLog) AS VARCHAR), 8),
+            ISNULL((SELECT MAX(CAST(SUBSTRING(LogID, 2, 8) AS INT)) FROM AuditLog), 0) + 1
+        AS VARCHAR), 8),
         i.UserID,
         'Pending',
         GETDATE(),
@@ -282,12 +288,13 @@ BEGIN
 
     IF UPDATE(StatusID)
     BEGIN
-        DECLARE @CurrentCount INT;
-        SELECT @CurrentCount = COUNT(*) FROM AuditLog;
+        DECLARE @MaxLogNum INT;
+        SELECT @MaxLogNum = ISNULL(MAX(CAST(SUBSTRING(LogID, 2, 8) AS INT)), 0)
+        FROM AuditLog;
 
         INSERT INTO AuditLog (LogID, UserID, AdminAction, ActionTimestamp, Remarks)
         SELECT
-            'L' + RIGHT('00000000' + CAST(@CurrentCount + ROW_NUMBER() OVER (ORDER BY i.UserID) AS VARCHAR), 8),
+            'L' + RIGHT('00000000' + CAST(@MaxLogNum + ROW_NUMBER() OVER (ORDER BY i.UserID) AS VARCHAR), 8),
             i.UserID,
             CASE i.StatusID
                 WHEN 2 THEN 'Approved'

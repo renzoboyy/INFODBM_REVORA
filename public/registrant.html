@@ -1,103 +1,303 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>REVORA - Registration</title>
-<link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>REVORA — Registration</title>
+  <meta name="description" content="Register as a Generator or Upcycler on Revora, the verified material exchange platform for the circular economy.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/register.css">
 </head>
-<body>
-<header class="topbar">
-  <h1>REVORA Registration</h1>
-  <a href="admin.html" style="color:white;font-size:0.85rem;">Admin Portal &rarr;</a>
-</header>
-<main>
-  <div id="message"></div>
+<body class="reg-body">
 
-  <form id="registerForm" class="card">
-    <h2>Account Type</h2>
-    <div class="row">
-      <div>
-        <label><input type="radio" name="accountType" value="Individual" checked> Individual</label>
+  <!-- Minimal top bar -->
+  <header class="reg-header">
+    <a href="index.html" class="reg-logo">
+      <span class="reg-logo-mark">&#x2573;</span>
+      <span class="reg-logo-text">Revora</span>
+    </a>
+    <a href="admin.html" class="reg-admin-link">Admin Portal &rarr;</a>
+  </header>
+
+  <main class="reg-main">
+
+    <!-- Step progress bar -->
+    <div class="reg-progress" id="regProgress">
+      <div class="reg-progress-fill" id="regProgressFill"></div>
+    </div>
+
+    <!-- Step indicator pills -->
+    <div class="reg-steps-indicator" id="regStepsIndicator"></div>
+
+    <!-- ========== STEP 1: ROLE ========== -->
+    <div class="reg-step" id="step-1" data-step="1">
+      <div class="reg-step-header">
+        <div class="reg-step-tag">Step 1 of 7</div>
+        <h1 class="reg-step-title">I am a&hellip;</h1>
+        <p class="reg-step-sub">Select the role that describes how you will participate in the Revora ecosystem.</p>
       </div>
-      <div>
-        <label><input type="radio" name="accountType" value="Entity"> Entity</label>
+      <div class="role-cards" id="roleCards">
+        <!-- filled by JS -->
       </div>
-    </div>
-
-    <h2>Personal Information</h2>
-    <div class="row">
-      <div><label>First Name</label><input name="firstName" required></div>
-      <div><label>Middle Name</label><input name="middleName"></div>
-    </div>
-    <div class="row">
-      <div><label>Last Name</label><input name="lastName" required></div>
-      <div><label>Suffix</label><input name="suffix" placeholder="Jr., Sr., III"></div>
-    </div>
-    <div class="row">
-      <div><label>Email</label><input type="email" name="email" required></div>
-      <div><label>Phone Number</label><input name="phoneNumber" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" required></div>
-    </div>
-    <label>Birth Date</label>
-    <input type="date" name="birthDate" required>
-
-    <label>Category</label>
-    <select name="categoryId" id="categoryId" required></select>
-
-    <label>Role</label>
-    <select name="roleId" id="roleId" required></select>
-
-    <h2>Government ID</h2>
-    <div class="row">
-      <div>
-        <label>ID Type</label>
-        <select name="govtType" id="govtType" required></select>
-      </div>
-      <div><label>ID Number</label><input name="govtNo" id="govtNo" required></div>
-    </div>
-    <p class="muted" id="govtHint"></p>
-
-    <h2>Account Credentials</h2>
-    <div class="row">
-      <div><label>Username</label><input name="username" maxlength="10" required></div>
-      <div><label>Password</label><input type="password" name="password" required></div>
-    </div>
-
-    <h2>Home Address</h2>
-    <label>Detailed Address (Street, Bldg, Unit No.)</label>
-    <textarea name="detailedHome" rows="2" required></textarea>
-    <div class="row">
-      <div><label>City / Municipality</label><input name="city" required></div>
-      <div><label>Province</label><input name="province" required></div>
-    </div>
-    <label>Postal Code</label>
-    <input name="postalCode" maxlength="4" pattern="[0-9]{4}" required>
-
-    <div id="entitySection" class="hidden">
-      <h2>Entity Information</h2>
-      <div class="row">
-        <div><label>Entity Name</label><input name="entityName" id="entityName"></div>
-        <div><label>TIN (11 characters)</label><input name="tin" id="tin" maxlength="11"></div>
-      </div>
-      <label>Sector</label>
-      <select name="sectorId" id="sectorId"></select>
-
-      <h2>Branch Information</h2>
-      <label>Branch Code</label>
-      <input name="branchCode" id="branchCode" maxlength="5" placeholder="00000">
-      <label>Branch Detailed Address</label>
-      <textarea name="branchDetailedAddress" id="branchDetailedAddress" rows="2"></textarea>
-      <div class="row">
-        <div><label>Branch City</label><input name="branchCity" id="branchCity"></div>
-        <div><label>Branch Postal Code</label><input name="branchPostalCode" id="branchPostalCode" maxlength="4" pattern="[0-9]{4}"></div>
+      <div class="reg-nav">
+        <div></div>
+        <button type="button" class="reg-btn reg-btn-primary" id="role-next" disabled>Continue &rarr;</button>
       </div>
     </div>
 
-    <div style="margin-top:20px;">
-      <button type="submit" class="btn-primary">Submit Registration</button>
+    <!-- ========== STEP 2: CATEGORY ========== -->
+    <div class="reg-step hidden" id="step-2" data-step="2">
+      <div class="reg-step-header">
+        <div class="reg-step-tag">Step 2 of 7</div>
+        <h1 class="reg-step-title">Select type</h1>
+        <p class="reg-step-sub">Choose the category that best represents you or your business.</p>
+      </div>
+      <div class="type-cards" id="typeCards">
+        <!-- filled by JS based on role -->
+      </div>
+      <div class="reg-nav">
+        <button type="button" class="reg-btn reg-btn-ghost" data-back="1">&larr; Back</button>
+        <button type="button" class="reg-btn reg-btn-primary" id="cat-next" disabled>Continue &rarr;</button>
+      </div>
     </div>
-  </form>
-</main>
-<script src="js/app.js"></script>
+
+    <!-- ========== STEP 3: ACCOUNT CREDENTIALS ========== -->
+    <div class="reg-step hidden" id="step-3" data-step="3">
+      <div class="reg-step-header">
+        <div class="reg-step-tag">Step 3 of 7</div>
+        <h1 class="reg-step-title">Account Information</h1>
+        <p class="reg-step-sub">Create your Revora account credentials.</p>
+      </div>
+      <div class="reg-form-section">
+        <div class="reg-field">
+          <label for="fi-username">Username <span class="req">*</span></label>
+          <input id="fi-username" name="username" maxlength="10" placeholder="Enter your username" required autocomplete="off">
+          <div class="field-hint">Maximum 10 characters</div>
+        </div>
+        <div class="reg-field">
+          <label for="fi-email">Email <span class="req">*</span></label>
+          <input id="fi-email" type="email" name="email" placeholder="Enter your email" required>
+        </div>
+        <div class="reg-field">
+          <label for="fi-password">Password <span class="req">*</span></label>
+          <div class="input-wrapper">
+            <input id="fi-password" type="password" name="password" placeholder="Enter your password" required>
+            <button type="button" class="toggle-pw" id="togglePw" aria-label="Toggle password">&#x1F441;</button>
+          </div>
+        </div>
+        <div class="reg-field">
+          <label for="fi-confirm-pw">Confirm Password <span class="req">*</span></label>
+          <div class="input-wrapper">
+            <input id="fi-confirm-pw" type="password" name="confirmPassword" placeholder="Confirm your password" required>
+            <button type="button" class="toggle-pw" id="toggleConfirmPw" aria-label="Toggle password">&#x1F441;</button>
+          </div>
+          <div class="field-hint" id="pwMatchHint"></div>
+        </div>
+      </div>
+      <div class="reg-nav">
+        <button type="button" class="reg-btn reg-btn-ghost" data-back="2">&larr; Back</button>
+        <button type="button" class="reg-btn reg-btn-primary" id="creds-next">Continue &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ========== STEP 4: PERSONAL INFORMATION ========== -->
+    <div class="reg-step hidden" id="step-4" data-step="4">
+      <div class="reg-step-header">
+        <div class="reg-step-tag">Step 4 of 7</div>
+        <h1 class="reg-step-title">Personal Information</h1>
+        <p class="reg-step-sub">Tell us about yourself. This information will be used for identity verification.</p>
+      </div>
+      <div class="reg-form-section">
+        <div class="reg-field-group">
+          <div class="reg-field">
+            <label for="fi-firstName">First Name <span class="req">*</span></label>
+            <input id="fi-firstName" name="firstName" placeholder="First name" required>
+          </div>
+          <div class="reg-field">
+            <label for="fi-middleName">Middle Name</label>
+            <input id="fi-middleName" name="middleName" placeholder="Optional">
+          </div>
+        </div>
+        <div class="reg-field-group">
+          <div class="reg-field">
+            <label for="fi-lastName">Last Name <span class="req">*</span></label>
+            <input id="fi-lastName" name="lastName" placeholder="Last name" required>
+          </div>
+          <div class="reg-field">
+            <label for="fi-suffix">Suffix</label>
+            <input id="fi-suffix" name="suffix" placeholder="Jr., Sr., III">
+          </div>
+        </div>
+        <div class="reg-field-group">
+          <div class="reg-field">
+            <label for="fi-phone">Phone Number <span class="req">*</span></label>
+            <input id="fi-phone" name="phoneNumber" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" maxlength="11" required>
+          </div>
+          <div class="reg-field">
+            <label for="fi-birthdate">Date of Birth <span class="req">*</span></label>
+            <input id="fi-birthdate" type="date" name="birthDate" required>
+          </div>
+        </div>
+      </div>
+      <div class="reg-nav">
+        <button type="button" class="reg-btn reg-btn-ghost" data-back="3">&larr; Back</button>
+        <button type="button" class="reg-btn reg-btn-primary" id="personal-next">Continue &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ========== STEP 5: GOVERNMENT ID ========== -->
+    <div class="reg-step hidden" id="step-5" data-step="5">
+      <div class="reg-step-header">
+        <div class="reg-step-tag">Step 5 of 7</div>
+        <h1 class="reg-step-title">Government ID</h1>
+        <p class="reg-step-sub">All participants must provide a valid government-issued ID for identity verification (KYC).</p>
+      </div>
+      <div class="reg-form-section">
+        <div class="reg-field">
+          <label>ID Type <span class="req">*</span></label>
+          <div class="id-type-grid" id="idTypeGrid">
+            <!-- filled by JS -->
+          </div>
+        </div>
+        <div class="reg-field" id="govtNoField" style="display:none">
+          <label for="fi-govtNo">ID Number <span class="req">*</span></label>
+          <input id="fi-govtNo" name="govtNo" placeholder="" required>
+          <div class="field-hint" id="govtHint"></div>
+        </div>
+      </div>
+      <div class="reg-nav">
+        <button type="button" class="reg-btn reg-btn-ghost" data-back="4">&larr; Back</button>
+        <button type="button" class="reg-btn reg-btn-primary" id="govtid-next" disabled>Continue &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ========== STEP 6: HOME ADDRESS ========== -->
+    <div class="reg-step hidden" id="step-6" data-step="6">
+      <div class="reg-step-header">
+        <div class="reg-step-tag">Step 6 of 7</div>
+        <h1 class="reg-step-title">Home Address</h1>
+        <p class="reg-step-sub">Provide your personal home address for account records.</p>
+      </div>
+      <div class="reg-form-section">
+        <div class="reg-field">
+          <label for="fi-home">Detailed Address (Street, Bldg, Unit No.) <span class="req">*</span></label>
+          <textarea id="fi-home" name="detailedHome" rows="2" placeholder="e.g. Unit 4B, The Greens, Sunset Ave." required></textarea>
+        </div>
+        <div class="reg-field-group">
+          <div class="reg-field">
+            <label for="fi-city">City / Municipality <span class="req">*</span></label>
+            <input id="fi-city" name="city" placeholder="e.g. Manila" required>
+          </div>
+          <div class="reg-field">
+            <label for="fi-province">Province</label>
+            <input id="fi-province" name="province" placeholder="e.g. Metro Manila">
+          </div>
+        </div>
+        <div class="reg-field" style="max-width:180px;">
+          <label for="fi-postal">Postal Code <span class="req">*</span></label>
+          <input id="fi-postal" name="postalCode" maxlength="4" pattern="[0-9]{4}" placeholder="XXXX" required>
+        </div>
+      </div>
+      <div class="reg-nav">
+        <button type="button" class="reg-btn reg-btn-ghost" data-back="5">&larr; Back</button>
+        <button type="button" class="reg-btn reg-btn-primary" id="address-next">Continue &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ========== STEP 7: ENTITY INFO (conditional) + REVIEW ========== -->
+    <div class="reg-step hidden" id="step-7" data-step="7">
+      <div class="reg-step-header">
+        <div class="reg-step-tag">Step 7 of 7</div>
+        <h1 class="reg-step-title" id="step7Title">Entity &amp; Branch Information</h1>
+        <p class="reg-step-sub" id="step7Sub">Since you are registering as a business entity, please provide your TIN, entity name, sector, and branch details.</p>
+      </div>
+
+      <!-- Entity section (only for Entity accounts) -->
+      <div id="entityBlock">
+        <div class="reg-form-section">
+          <div class="reg-field-group">
+            <div class="reg-field">
+              <label for="fi-entityName">Entity / Business Name <span class="req">*</span></label>
+              <input id="fi-entityName" name="entityName" placeholder="e.g. Sewear Corporation">
+            </div>
+            <div class="reg-field">
+              <label for="fi-tin">TIN (11 characters) <span class="req">*</span></label>
+              <input id="fi-tin" name="tin" maxlength="11" placeholder="e.g. 12345678901">
+              <div class="field-hint">No dashes — exactly 11 characters</div>
+            </div>
+          </div>
+          <div class="reg-field">
+            <label for="fi-sector">Industry Sector <span class="req">*</span></label>
+            <select id="fi-sector" name="sectorId">
+              <option value="">Select Sector</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="reg-section-label">Branch Information</div>
+        <div class="reg-form-section">
+          <div class="reg-field" style="max-width:200px;">
+            <label for="fi-branchCode">Branch Code <span class="req">*</span></label>
+            <input id="fi-branchCode" name="branchCode" maxlength="5" placeholder="00000">
+            <div class="field-hint">5-digit numeric code</div>
+          </div>
+          <div class="reg-field">
+            <label for="fi-branchAddr">Branch Detailed Address <span class="req">*</span></label>
+            <textarea id="fi-branchAddr" name="branchDetailedAddress" rows="2" placeholder="e.g. 3F Greenbelt 5, Ayala Ave., Makati City"></textarea>
+          </div>
+          <div class="reg-field-group">
+            <div class="reg-field">
+              <label for="fi-branchCity">Branch City <span class="req">*</span></label>
+              <input id="fi-branchCity" name="branchCity" placeholder="e.g. Makati City">
+            </div>
+            <div class="reg-field" style="max-width:180px;">
+              <label for="fi-branchPostal">Branch Postal Code <span class="req">*</span></label>
+              <input id="fi-branchPostal" name="branchPostalCode" maxlength="4" pattern="[0-9]{4}" placeholder="XXXX">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Review summary (shown before final submit) -->
+      <div id="reviewBlock" class="hidden">
+        <div class="review-summary" id="reviewSummary">
+          <!-- filled by JS -->
+        </div>
+      </div>
+
+      <div id="message"></div>
+
+      <div class="reg-nav" id="step7Nav">
+        <button type="button" class="reg-btn reg-btn-ghost" data-back="6">&larr; Back</button>
+        <button type="button" class="reg-btn reg-btn-primary" id="entity-next">Review &amp; Submit &rarr;</button>
+      </div>
+      <div class="reg-nav hidden" id="submitNav">
+        <button type="button" class="reg-btn reg-btn-ghost" id="editBtn">&#x270E; Edit</button>
+        <button type="button" class="reg-btn reg-btn-primary" id="submitBtn">Submit Registration</button>
+      </div>
+    </div>
+
+    <!-- ========== SUCCESS SCREEN ========== -->
+    <div class="reg-step hidden" id="step-success">
+      <div class="success-screen">
+        <div class="success-icon">&#x2713;</div>
+        <h2>Registration Submitted!</h2>
+        <p>Your application has been received and is now <strong>Pending Review</strong>. An administrator will evaluate your credentials within 3&ndash;5 business days.</p>
+        <div class="success-ref" id="successRef"></div>
+        <p class="muted" style="color:rgba(255,255,255,0.4);">Once an administrator approves your account, log in to view your dashboard.</p>
+        <div class="success-actions">
+          <a href="index.html" class="reg-btn reg-btn-ghost">Back to Home</a>
+          <a href="login.html" class="reg-btn reg-btn-primary">Go to Login</a>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="js/app.js"></script>
+  <script src="js/register.js"></script>
 </body>
 </html>

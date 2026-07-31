@@ -61,7 +61,7 @@ GRANT EXECUTE ON SCHEMA::dbo TO [revora_app];
 
 The app depends on views, stored procedures, and a function that live on
 top of the base schema (`ApproveUserAccount`, `sp_RejectRegistrant`,
-`sp_RegisterUser`, `sp_CloseBranch`, `sp_UpdateEntityTIN`, `fn_SLAStatus`,
+`sp_RegisterUser`, `sp_CloseBranch`, `fn_SLAStatus`,
 `vw_ApplicantDirectory`, `vw_ApplicantDetail`, `vw_PendingThenApproved`,
 `vw_EntityBasedRegistrants`). Apply them once:
 
