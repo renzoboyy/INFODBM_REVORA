@@ -142,4 +142,28 @@ router.post('/admin/users/:id/reject', async (req, res) => {
   }
 });
 
+// Audit Log tab: raw dbo.AuditLog, newest first. Joined to Users for a
+// readable name/email instead of just the bare UserID.
+router.get('/admin/auditlog', async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT
+        al.LogID,
+        al.UserID,
+        u.FirstName + ' ' + u.LastName AS FullName,
+        u.Email,
+        al.AdminAction,
+        al.ActionTimestamp,
+        al.Remarks
+      FROM dbo.AuditLog al
+      LEFT JOIN dbo.Users u ON al.UserID = u.UserID
+      ORDER BY al.LogID DESC
+    `);
+    res.json(result.recordset);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;

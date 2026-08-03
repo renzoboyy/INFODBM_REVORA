@@ -32,6 +32,9 @@
     <!-- Step indicator pills -->
     <div class="reg-steps-indicator" id="regStepsIndicator"></div>
 
+    <!-- Persistent message slot - shared by every step, not just step 7 -->
+    <div id="message"></div>
+
     <!-- ========== STEP 1: ROLE ========== -->
     <div class="reg-step" id="step-1" data-step="1">
       <div class="reg-step-header">
@@ -84,14 +87,15 @@
         <div class="reg-field">
           <label for="fi-password">Password <span class="req">*</span></label>
           <div class="input-wrapper">
-            <input id="fi-password" type="password" name="password" placeholder="Enter your password" required>
+            <input id="fi-password" type="password" name="password" maxlength="32" placeholder="Enter your password" required>
             <button type="button" class="toggle-pw" id="togglePw" aria-label="Toggle password">&#x1F441;</button>
           </div>
+          <div class="field-hint">Up to 32 characters</div>
         </div>
         <div class="reg-field">
           <label for="fi-confirm-pw">Confirm Password <span class="req">*</span></label>
           <div class="input-wrapper">
-            <input id="fi-confirm-pw" type="password" name="confirmPassword" placeholder="Confirm your password" required>
+            <input id="fi-confirm-pw" type="password" name="confirmPassword" maxlength="32" placeholder="Confirm your password" required>
             <button type="button" class="toggle-pw" id="toggleConfirmPw" aria-label="Toggle password">&#x1F441;</button>
           </div>
           <div class="field-hint" id="pwMatchHint"></div>
@@ -188,22 +192,33 @@
         </div>
         <div class="reg-field-group">
           <div class="reg-field">
-            <label for="fi-barangay">Barangay <span class="req">*</span></label>
-            <input id="fi-barangay" name="barangay" placeholder="e.g. Barangay Poblacion" required>
+            <label for="fi-region">Region <span class="req">*</span></label>
+            <select id="fi-region" name="region" required>
+              <option value="">Select Region</option>
+            </select>
           </div>
           <div class="reg-field">
-            <label for="fi-city">City / Municipality <span class="req">*</span></label>
-            <input id="fi-city" name="city" placeholder="e.g. Manila" required>
+            <label for="fi-province">Province <span class="req">*</span></label>
+            <select id="fi-province" name="province" required disabled>
+              <option value="">Select Region first</option>
+            </select>
+            <input id="fi-provinceOther" class="hidden" placeholder="Enter province name">
           </div>
         </div>
         <div class="reg-field-group">
           <div class="reg-field">
-            <label for="fi-province">Province</label>
-            <input id="fi-province" name="province" placeholder="e.g. Metro Manila">
+            <label for="fi-city">City / Municipality <span class="req">*</span></label>
+            <select id="fi-city" name="city" required disabled>
+              <option value="">Select Province first</option>
+            </select>
+            <input id="fi-cityOther" class="hidden" placeholder="Enter city/municipality name">
           </div>
           <div class="reg-field">
-            <label for="fi-region">Region</label>
-            <input id="fi-region" name="region" placeholder="e.g. NCR">
+            <label for="fi-barangay">Barangay <span class="req">*</span></label>
+            <select id="fi-barangay" name="barangay" required disabled>
+              <option value="">Select City first</option>
+            </select>
+            <input id="fi-barangayOther" class="hidden" placeholder="Enter barangay name">
           </div>
         </div>
         <div class="reg-field" style="max-width:180px;">
@@ -234,9 +249,9 @@
               <input id="fi-entityName" name="entityName" placeholder="e.g. Sewear Corporation">
             </div>
             <div class="reg-field">
-              <label for="fi-tin">TIN (11 characters) <span class="req">*</span></label>
-              <input id="fi-tin" name="tin" maxlength="11" placeholder="e.g. 12345678901">
-              <div class="field-hint">No dashes — exactly 11 characters</div>
+              <label for="fi-tin">TIN (11 digits) <span class="req">*</span></label>
+              <input id="fi-tin" name="tin" maxlength="11" inputmode="numeric" pattern="[0-9]{11}" placeholder="e.g. 12345678901">
+              <div class="field-hint">No dashes or letters — exactly 11 digits</div>
             </div>
           </div>
           <div class="reg-field">
@@ -255,26 +270,37 @@
           </div>
           <div class="reg-field-group">
             <div class="reg-field">
-              <label for="fi-branchBarangay">Branch Barangay <span class="req">*</span></label>
-              <input id="fi-branchBarangay" name="branchBarangay" placeholder="e.g. Barangay Bel-Air">
+              <label for="fi-branchRegion">Branch Region <span class="req">*</span></label>
+              <select id="fi-branchRegion" name="branchRegion" required>
+                <option value="">Select Region</option>
+              </select>
             </div>
             <div class="reg-field">
-              <label for="fi-branchCity">Branch City <span class="req">*</span></label>
-              <input id="fi-branchCity" name="branchCity" placeholder="e.g. Makati City">
+              <label for="fi-branchProvince">Branch Province <span class="req">*</span></label>
+              <select id="fi-branchProvince" name="branchProvince" required disabled>
+                <option value="">Select Region first</option>
+              </select>
+              <input id="fi-branchProvinceOther" class="hidden" placeholder="Enter province name">
             </div>
           </div>
           <div class="reg-field-group">
             <div class="reg-field">
-              <label for="fi-branchProvince">Branch Province <span class="req">*</span></label>
-              <input id="fi-branchProvince" name="branchProvince" placeholder="e.g. Metro Manila">
+              <label for="fi-branchCity">Branch City <span class="req">*</span></label>
+              <select id="fi-branchCity" name="branchCity" required disabled>
+                <option value="">Select Province first</option>
+              </select>
+              <input id="fi-branchCityOther" class="hidden" placeholder="Enter city/municipality name">
             </div>
             <div class="reg-field">
-              <label for="fi-branchRegion">Branch Region</label>
-              <input id="fi-branchRegion" name="branchRegion" placeholder="e.g. NCR">
+              <label for="fi-branchBarangay">Branch Barangay <span class="req">*</span></label>
+              <select id="fi-branchBarangay" name="branchBarangay" required disabled>
+                <option value="">Select City first</option>
+              </select>
+              <input id="fi-branchBarangayOther" class="hidden" placeholder="Enter barangay name">
             </div>
             <div class="reg-field" style="max-width:180px;">
               <label for="fi-branchPostal">Branch Postal Code <span class="req">*</span></label>
-              <input id="fi-branchPostal" name="branchPostalCode" maxlength="4" pattern="[0-9]{4}" placeholder="XXXX">
+              <input id="fi-branchPostal" name="branchPostalCode" maxlength="4" pattern="[0-9]{4}" placeholder="XXXX" required>
             </div>
           </div>
         </div>
@@ -286,8 +312,6 @@
           <!-- filled by JS -->
         </div>
       </div>
-
-      <div id="message"></div>
 
       <div class="reg-nav" id="step7Nav">
         <button type="button" class="reg-btn reg-btn-ghost" data-back="6">&larr; Back</button>

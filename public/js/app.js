@@ -1,3 +1,12 @@
+// Some browsers restore the previous tab's scroll offset on a plain
+// refresh (not just back/forward navigation), which reads as "every reload
+// nudges the page down a bit" since the async data loads below change the
+// page's height between visits. Force a clean top-of-page start instead.
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual';
+}
+window.scrollTo(0, 0);
+
 function showMessage(text, type) {
   const el = document.getElementById('message');
   if (!el) return;
@@ -16,11 +25,18 @@ function debounce(fn, delay) {
 const SLA_BADGE = { 'On Track': 'badge-green', 'Due Soon': 'badge-yellow', 'Overdue': 'badge-red', 'N/A': 'badge-gray' };
 const STATUS_BADGE = {
   Pending: 'badge-yellow', Approved: 'badge-green', Rejected: 'badge-red',
-  Suspended: 'badge-gray', Deleted: 'badge-red', Closed: 'badge-gray'
+  Suspended: 'badge-gray', Deleted: 'badge-red', Closed: 'badge-gray',
+  Resubmitted: 'badge-yellow'
 };
 
 let currentTabStatus = '1';
 let selectedApplicantId = null;
+// True right after an approve/reject, while the pane is showing the
+// confirmation message instead of the plain "select a registration"
+// placeholder. loadApplicantList()'s empty-state branch checks this so its
+// refresh doesn't wipe the confirmation out from under it; selecting a new
+// applicant clears it back to normal.
+let paneShowingDecision = false;
 
 async function loadAnalytics() {
   const grid = document.getElementById('statGrid');
@@ -86,6 +102,7 @@ async function loadApplicantList(status) {
       </div>
     </div>
   `).join('') || '<p class="muted" style="padding:14px;">No registrations in this status.</p>';
+  playFadeUp(list);
 
   list.querySelectorAll('.applicant-row').forEach(row => {
     row.addEventListener('click', () => selectApplicant(row.dataset.id));
@@ -96,14 +113,56 @@ async function loadApplicantList(status) {
     if (row) row.classList.add('selected');
   } else {
     selectedApplicantId = null;
-    document.getElementById('reviewDetailPane').innerHTML =
-      '<p class="muted placeholder-text">Select registration to view applicant details.</p>';
+    if (!paneShowingDecision) {
+      document.getElementById('reviewDetailPane').innerHTML =
+        '<p class="muted placeholder-text">Select registration to view applicant details.</p>';
+    }
   }
+}
+
+// Squeezes the detail pane down to a sliver and back out (an "eye blink" /
+// closing-sandwich motion), swapping its content for a name-based
+// confirmation at the midpoint - when it reopens, it's already showing the
+// result rather than jump-cutting straight to the empty placeholder.
+function blinkDecisionResult(pane, fullName, action) {
+  // The confirmation card is much shorter than the applicant detail view it
+  // replaces, so the page's scrollable height drops the instant the content
+  // swaps below. If the admin was scrolled down, the browser clamps the
+  // scroll position back into bounds immediately - a hard, unsmoothed jump.
+  // Ease there ourselves first so the swap (at 300ms) lands after we've
+  // already arrived, in sync with the blink instead of fighting it.
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  pane.classList.remove('blink');
+  void pane.offsetWidth;
+  pane.classList.add('blink');
+  // Strip the class once the animation finishes - a CSS animation applied
+  // via a class that's left in place replays from scratch the next time the
+  // element goes display:none -> block (e.g. switching tabs away and back),
+  // since display:none drops all in-flight/completed animation state.
+  pane.addEventListener('animationend', () => pane.classList.remove('blink'), { once: true });
+  setTimeout(() => {
+    const approved = action === 'approve';
+    pane.innerHTML = `
+      <div class="decision-confirm">
+        <div class="decision-confirm-icon ${approved ? 'decision-confirm-icon-approve' : 'decision-confirm-icon-reject'}">
+          ${approved ? '&#10003;' : '&#10005;'}
+        </div>
+        <p><strong>${fullName}</strong> has been ${approved ? 'approved' : 'rejected'}.</p>
+      </div>
+      <p class="decision-followup-text">Select registration to view applicant details.</p>
+    `;
+    paneShowingDecision = true;
+  }, 300);
 }
 
 async function handleDecision(userId, action) {
   const notesInput = document.getElementById('reviewNotes');
   const notes = notesInput ? notesInput.value.trim() : '';
+  const pane = document.getElementById('reviewDetailPane');
+  const nameEl = pane.querySelector('h2');
+  const fullName = nameEl ? nameEl.textContent.trim() : `User ${userId}`;
+
   const res = await fetch(`/api/admin/users/${userId}/${action}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -111,11 +170,17 @@ async function handleDecision(userId, action) {
   });
   const data = await res.json();
   if (data.success) {
-    showMessage(`User ${userId} ${action}d.`, 'success');
     selectedApplicantId = null;
-    loadApplicantList(currentTabStatus);
-    runSearch();
-    loadAnalytics();
+    blinkDecisionResult(pane, fullName, action);
+    // Delay the list/search/analytics refresh so it doesn't stomp the
+    // confirmation message the instant it appears - loadApplicantList()
+    // resets reviewDetailPane back to the "select a registration"
+    // placeholder whenever nothing is selected.
+    setTimeout(() => {
+      loadApplicantList(currentTabStatus);
+      runSearch();
+      loadAnalytics();
+    }, 1300);
   } else {
     showMessage(data.message, 'error');
   }
@@ -130,6 +195,7 @@ function addr(detailed, barangay, city, province, region, postal) {
 
 async function selectApplicant(userId) {
   selectedApplicantId = userId;
+  paneShowingDecision = false;
   document.querySelectorAll('.applicant-row').forEach(row => {
     row.classList.toggle('selected', row.dataset.id === userId);
   });
@@ -289,6 +355,22 @@ async function loadEditRequests() {
   });
 }
 
+async function loadAuditLog() {
+  const body = document.getElementById('auditLogBody');
+  if (!body) return;
+  const rows = await (await fetch('/api/admin/auditlog')).json();
+
+  body.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.LogID}</td>
+      <td>${r.FullName ? r.FullName + ' (' + r.UserID + ')' : r.UserID}</td>
+      <td><span class="badge ${STATUS_BADGE[r.AdminAction] || 'badge-gray'}">${r.AdminAction}</span></td>
+      <td>${new Date(r.ActionTimestamp).toLocaleString()}</td>
+      <td>${r.Remarks || '-'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" class="muted">No audit log entries yet.</td></tr>';
+}
+
 async function resolveEditRequest(id, action, btn) {
   const card = btn.closest('.card');
   const notes = card.querySelector('.edit-req-notes').value.trim();
@@ -313,6 +395,16 @@ async function resolveEditRequest(id, action, btn) {
   }
 }
 
+// Replays the fade-up/slide-up transition on an element every time it's
+// called, not just once - removing 'visible' then forcing a reflow before
+// re-adding it is what makes the CSS transition fire again on repeat tab
+// clicks (simply re-adding an already-present class is a no-op).
+function playFadeUp(el) {
+  el.classList.remove('visible');
+  void el.offsetWidth;
+  el.classList.add('visible');
+}
+
 function initAdminNav() {
   const navItems = document.querySelectorAll('.nav-item');
   if (!navItems.length) return;
@@ -322,9 +414,15 @@ function initAdminNav() {
       navItems.forEach(i => i.classList.remove('active'));
       item.classList.add('active');
       document.querySelectorAll('.admin-panel').forEach(panel => panel.classList.add('hidden'));
-      document.getElementById(`panel-${item.dataset.panel}`).classList.remove('hidden');
+      const panel = document.getElementById(`panel-${item.dataset.panel}`);
+      panel.classList.remove('hidden');
+      playFadeUp(panel);
+      if (item.dataset.panel === 'auditlog') loadAuditLog();
     });
   });
+  // animate the panel that's active on first load too
+  const initialPanel = document.querySelector('.admin-panel:not(.hidden)');
+  if (initialPanel) playFadeUp(initialPanel);
 }
 
 function initQueueTabs() {
@@ -336,6 +434,7 @@ function initQueueTabs() {
       tab.classList.add('active');
       currentTabStatus = tab.dataset.status;
       selectedApplicantId = null;
+      paneShowingDecision = false;
       loadApplicantList(currentTabStatus);
     });
   });
@@ -357,5 +456,6 @@ function initAdminPage() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  window.scrollTo(0, 0);
   initAdminPage();
 });

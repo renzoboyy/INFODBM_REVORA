@@ -27,6 +27,24 @@ SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
 GO
 
+/* ============================================================================
+   Preflight: fail fast with a readable message instead of dying partway
+   through on an opaque FK violation (e.g. FK_Entities_Sectors, FK_Users_Roles)
+   if the run order in the header above wasn't followed.
+   ============================================================================ */
+IF NOT EXISTS (SELECT 1 FROM dbo.Roles) OR NOT EXISTS (SELECT 1 FROM dbo.Categories)
+   OR NOT EXISTS (SELECT 1 FROM dbo.AccountStatus) OR NOT EXISTS (SELECT 1 FROM dbo.Sectors)
+BEGIN
+    RAISERROR('07_seed_v3.sql requires Roles/Categories/AccountStatus/Sectors to already be populated. Run 02_lookups_v3.sql first, then re-run this script.', 16, 1);
+    RETURN;
+END
+IF OBJECT_ID('dbo.sp_ResolveAddress', 'P') IS NULL
+BEGIN
+    RAISERROR('07_seed_v3.sql requires dbo.sp_ResolveAddress. Run 03_additional_objects_v3.sql first, then re-run this script.', 16, 1);
+    RETURN;
+END
+GO
+
 INSERT INTO dbo.GID (GovtID, GovtType, GovtNo) VALUES
     ('G00001', 'PhilSys',        '9876543210123456'),
     ('G00002', 'UMID',           '432109876543'),

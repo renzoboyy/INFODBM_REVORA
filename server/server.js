@@ -9,6 +9,7 @@ const adminRoutes = require('./routes/admin');
 const lookupRoutes = require('./routes/lookups');
 const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
+const geoRoutes = require('./routes/geo');
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use('/api', adminRoutes);
 app.use('/api', lookupRoutes);
 app.use('/api', authRoutes);
 app.use('/api', profileRoutes);
+app.use('/api', geoRoutes);
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {

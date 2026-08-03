@@ -8,16 +8,16 @@
      - vw_ApplicantDirectory, vw_ApplicantDetail  (admin search/review screens)
      - vw_PendingThenApproved (INTERSECT), vw_EntityBasedRegistrants (EXCEPT)
 
-   App-compatibility note: the Node app's registration/profile-edit forms only
-   collect DetailedAddress/City/Province/PostalCode (no Barangay or Region
-   field exists in the UI yet - see registrant.html). sp_RegisterUser therefore
-   takes @Region/@Barangay/@BranchRegion/@BranchBarangay as OPTIONAL parameters
-   defaulting to 'Unspecified', so server/routes/registration.js needs no
-   changes. Every barangay physically shares the postal code passed in, so
-   City+PostalCode is still enough to disambiguate day-to-day; only the
-   Region/Barangay *names* are placeholders until the UI grows real geography
-   pickers, at which point only the client payload changes - the schema
-   already has the correct shape.
+   App-compatibility note: registrant.html's Region/Province/Barangay fields
+   (personal and branch) are all optional in the UI - only DetailedAddress,
+   City, and PostalCode are required. sp_RegisterUser therefore takes
+   @Region/@Province/@Barangay/@BranchRegion/@BranchBarangay as OPTIONAL
+   parameters defaulting to 'Unspecified' (Province.ProvinceName and
+   Region.RegionName are both NOT NULL in 01_schema_v3.sql, so a blank
+   optional field must resolve to a placeholder string, never NULL, before
+   it reaches sp_ResolveAddress). server/routes/registration.js only binds
+   these params when the submitted value is truthy, so an omitted/blank
+   field falls through to the default instead of being passed as NULL.
    ============================================================================ */
 
 USE [INFODBM_REVORA];
@@ -178,7 +178,7 @@ CREATE PROCEDURE dbo.sp_RegisterUser
     -- personal address
     @DetailedHome        NVARCHAR(250),
     @City                NVARCHAR(50),
-    @Province             NVARCHAR(50),
+    @Province             NVARCHAR(50)   = 'Unspecified',
     @PostalCode           CHAR(4),
     -- government ID
     @GovtType             VARCHAR(15),

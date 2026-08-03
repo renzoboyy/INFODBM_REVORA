@@ -7,6 +7,9 @@
 
 const TOTAL_STEPS = 7;
 
+let personalGeo = null;
+let branchGeo = null;
+
 // ── State ──────────────────────────────────────────
 const state = {
   step: 1,
@@ -26,6 +29,155 @@ const state = {
 async function fetchLookups() {
   const res = await fetch('/api/lookups');
   state.lookups = await res.json();
+}
+
+// ── Cascading geography picker (Region -> Province -> City -> Barangay) ──
+// Region is a closed dropdown (GET /api/geo/regions - the 17 fixed PH
+// regions). Province/City/Barangay are NOT exhaustively seeded, so each is
+// a dropdown of whatever already exists under the parent selection, plus an
+// "Other (not listed)" option that reveals a free-text fallback. Picking
+// "Other" (or a parent already being "Other") skips straight to freeform
+// for every level below it, since there's no known parent to query against.
+// One instance is created for the personal address fields and a second,
+// separate instance for the branch address fields - they never share state.
+const GEO_OTHER = '__other__';
+
+function createGeoCascade(ids) {
+  const regionSel     = document.getElementById(ids.region);
+  const provinceSel    = document.getElementById(ids.province);
+  const provinceOther  = document.getElementById(ids.provinceOther);
+  const citySel        = document.getElementById(ids.city);
+  const cityOther       = document.getElementById(ids.cityOther);
+  const barangaySel     = document.getElementById(ids.barangay);
+  const barangayOther   = document.getElementById(ids.barangayOther);
+  const postalInput     = document.getElementById(ids.postal);
+
+  async function fetchJSON(url) {
+    try {
+      const res = await fetch(url);
+      return res.ok ? await res.json() : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function fillSelect(sel, options, placeholder, includeOther) {
+    sel.innerHTML = `<option value="">${placeholder}</option>` +
+      options.map(o => `<option value="${o}">${o}</option>`).join('') +
+      (includeOther ? `<option value="${GEO_OTHER}">Other (not listed)</option>` : '');
+    sel.disabled = false;
+  }
+
+  function resetLevel(sel, otherInput, placeholder) {
+    sel.innerHTML = `<option value="">${placeholder}</option>`;
+    sel.disabled = true;
+    otherInput.classList.add('hidden');
+    otherInput.value = '';
+  }
+
+  function lockAsFreeform(sel, otherInput, placeholderText) {
+    sel.innerHTML = `<option value="${GEO_OTHER}" selected>Other (not listed)</option>`;
+    sel.disabled = true;
+    otherInput.classList.remove('hidden');
+    otherInput.placeholder = placeholderText;
+    otherInput.value = '';
+  }
+
+  function resetPostal() {
+    postalInput.value = '';
+    postalInput.readOnly = false;
+  }
+
+  async function onRegionChange() {
+    resetLevel(provinceSel, provinceOther, 'Select Region first');
+    resetLevel(citySel, cityOther, 'Select Province first');
+    resetLevel(barangaySel, barangayOther, 'Select City first');
+    resetPostal();
+    if (!regionSel.value) return;
+    const provinces = await fetchJSON(`/api/geo/provinces?region=${encodeURIComponent(regionSel.value)}`);
+    fillSelect(provinceSel, provinces, 'Select Province', true);
+  }
+
+  async function onProvinceChange() {
+    resetLevel(citySel, cityOther, 'Select Province first');
+    resetLevel(barangaySel, barangayOther, 'Select City first');
+    resetPostal();
+    provinceOther.classList.toggle('hidden', provinceSel.value !== GEO_OTHER);
+    if (provinceSel.value === GEO_OTHER) {
+      provinceOther.value = '';
+      provinceOther.focus();
+      lockAsFreeform(citySel, cityOther, 'Enter city/municipality name');
+      lockAsFreeform(barangaySel, barangayOther, 'Enter barangay name');
+      return;
+    }
+    if (!provinceSel.value) return;
+    const cities = await fetchJSON(`/api/geo/cities?region=${encodeURIComponent(regionSel.value)}&province=${encodeURIComponent(provinceSel.value)}`);
+    fillSelect(citySel, cities, 'Select City/Municipality', true);
+  }
+
+  async function onCityChange() {
+    resetLevel(barangaySel, barangayOther, 'Select City first');
+    resetPostal();
+    cityOther.classList.toggle('hidden', citySel.value !== GEO_OTHER);
+    if (citySel.value === GEO_OTHER) {
+      cityOther.value = '';
+      cityOther.focus();
+      lockAsFreeform(barangaySel, barangayOther, 'Enter barangay name');
+      return;
+    }
+    if (!citySel.value) return;
+    const barangays = await fetchJSON(`/api/geo/barangays?region=${encodeURIComponent(regionSel.value)}&province=${encodeURIComponent(provinceSel.value)}&city=${encodeURIComponent(citySel.value)}`);
+    barangaySel.innerHTML = `<option value="">Select Barangay</option>` +
+      barangays.map(b => `<option value="${b.BarangayName}" data-postal="${b.PostalCode}">${b.BarangayName}</option>`).join('') +
+      `<option value="${GEO_OTHER}">Other (not listed)</option>`;
+    barangaySel.disabled = false;
+  }
+
+  function onBarangayChange() {
+    barangayOther.classList.toggle('hidden', barangaySel.value !== GEO_OTHER);
+    if (barangaySel.value === GEO_OTHER) {
+      barangayOther.value = '';
+      barangayOther.focus();
+      resetPostal();
+      return;
+    }
+    const opt = barangaySel.selectedOptions[0];
+    const postal = opt ? opt.dataset.postal : '';
+    postalInput.value = postal || '';
+    postalInput.readOnly = !!postal;
+  }
+
+  regionSel.addEventListener('change', onRegionChange);
+  provinceSel.addEventListener('change', onProvinceChange);
+  citySel.addEventListener('change', onCityChange);
+  barangaySel.addEventListener('change', onBarangayChange);
+
+  (async () => {
+    const regions = await fetchJSON('/api/geo/regions');
+    fillSelect(regionSel, regions, 'Select Region', false);
+  })();
+
+  function getValues() {
+    return {
+      region: regionSel.value || '',
+      province: provinceSel.value === GEO_OTHER ? provinceOther.value.trim() : (provinceSel.value || ''),
+      city: citySel.value === GEO_OTHER ? cityOther.value.trim() : (citySel.value || ''),
+      barangay: barangaySel.value === GEO_OTHER ? barangayOther.value.trim() : (barangaySel.value || ''),
+      postalCode: postalInput.value.trim()
+    };
+  }
+
+  function validate(label) {
+    const v = getValues();
+    if (!v.region) return `Please select a ${label}region.`;
+    if (!v.province) return `Please select or enter a ${label}province.`;
+    if (!v.city) return `Please select or enter a ${label}city/municipality.`;
+    if (!v.barangay) return `Please select or enter a ${label}barangay.`;
+    if (!/^[0-9]{4}$/.test(v.postalCode)) return `${label ? 'Branch postal' : 'Postal'} code must be exactly 4 digits.`;
+    return null;
+  }
+
+  return { getValues, validate };
 }
 
 // ── Progress helpers ───────────────────────────────
@@ -179,8 +331,8 @@ function initStep3() {
     if (password !== confirmPw) {
       showRegMsg('Passwords do not match.', 'error'); return;
     }
-    if (password.length < 6) {
-      showRegMsg('Password must be at least 6 characters.', 'error'); return;
+    if (password.length > 32) {
+      showRegMsg('Password must be 32 characters or fewer.', 'error'); return;
     }
 
     state.credentials = { username, email, password };
@@ -203,6 +355,12 @@ function initStep4() {
     if (!/^09[0-9]{9}$/.test(phone)) {
       showRegMsg('Phone number must be in the format 09XXXXXXXXX (11 digits).', 'error'); return;
     }
+    // Mirrors CK_BirthDate_Valid in db/01_schema_v3.sql
+    const bd = new Date(birthDate + 'T00:00:00');
+    const minDate = new Date('1900-01-01T00:00:00');
+    if (isNaN(bd.getTime()) || bd < minDate || bd >= new Date()) {
+      showRegMsg('Please enter a valid date of birth (between 1900-01-01 and today).', 'error'); return;
+    }
 
     state.personalInfo = {
       firstName,
@@ -219,12 +377,21 @@ function initStep4() {
 }
 
 // ── Step 5: Government ID ──────────────────────────
+// Mirrors CK_GovernmentID_Validation in db/01_schema_v3.sql exactly, so a
+// value that passes here is guaranteed to pass the database CHECK too.
 const GOVT_HINTS = {
   'PhilSys':        'Format: 16 digits (numbers only).',
-  'Passport':       'Format: 1 letter + 7 digits, e.g. P1234567.',
-  'Driver License': 'Format: A00-00-000000 (letter + digits).',
+  'Passport':       'Format: 6-12 letters/digits, e.g. P1234567.',
+  'Driver License': 'Format: A00-00-000000 (1 letter + digits).',
   'UMID':           'Format: 12 digits (numbers only).',
   'PRC ID':         'Format: 7 digits (numbers only).'
+};
+const GOVT_VALIDATORS = {
+  'PhilSys':        { pattern: /^[0-9]{16}$/,                    maxlength: 16, uppercase: false, error: 'PhilSys ID must be exactly 16 digits.' },
+  'Passport':       { pattern: /^[A-Za-z0-9]{6,12}$/,             maxlength: 12, uppercase: false, error: 'Passport number must be 6-12 letters/digits.' },
+  'Driver License': { pattern: /^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/, maxlength: 13, uppercase: true,  error: 'Driver License must be in format A00-00-000000.' },
+  'UMID':           { pattern: /^[0-9]{12}$/,                    maxlength: 12, uppercase: false, error: 'UMID must be exactly 12 digits.' },
+  'PRC ID':         { pattern: /^[0-9]{7}$/,                     maxlength: 7,  uppercase: false, error: 'PRC ID must be exactly 7 digits.' }
 };
 
 function initStep5() {
@@ -246,6 +413,8 @@ function initStep5() {
       state.govtType = pill.dataset.type;
       noField.style.display = '';
       hint.textContent = GOVT_HINTS[state.govtType] || '';
+      const v = GOVT_VALIDATORS[state.govtType];
+      noInput.maxLength = v ? v.maxlength : 20;
       noInput.value = state.govtNo || '';
       noInput.focus();
       checkGovtReady();
@@ -253,7 +422,9 @@ function initStep5() {
   });
 
   noInput.addEventListener('input', () => {
-    state.govtNo = noInput.value.trim();
+    const v = GOVT_VALIDATORS[state.govtType];
+    state.govtNo = (v && v.uppercase ? noInput.value.toUpperCase() : noInput.value).trim();
+    if (v && v.uppercase) noInput.value = state.govtNo;
     checkGovtReady();
   });
 
@@ -265,6 +436,10 @@ function initStep5() {
     if (!state.govtType || !state.govtNo) {
       showRegMsg('Please select an ID type and enter your ID number.', 'error'); return;
     }
+    const v = GOVT_VALIDATORS[state.govtType];
+    if (v && !v.pattern.test(state.govtNo)) {
+      showRegMsg(v.error, 'error'); return;
+    }
     clearRegMsg();
     goToStep(6);
   });
@@ -272,26 +447,31 @@ function initStep5() {
 
 // ── Step 6: Home Address ───────────────────────────
 function initStep6() {
+  personalGeo = createGeoCascade({
+    region: 'fi-region', province: 'fi-province', provinceOther: 'fi-provinceOther',
+    city: 'fi-city', cityOther: 'fi-cityOther',
+    barangay: 'fi-barangay', barangayOther: 'fi-barangayOther',
+    postal: 'fi-postal'
+  });
+
   document.getElementById('address-next').addEventListener('click', () => {
     const home = document.getElementById('fi-home').value.trim();
-    const barangay = document.getElementById('fi-barangay').value.trim();
-    const city = document.getElementById('fi-city').value.trim();
-    const postal = document.getElementById('fi-postal').value.trim();
-
-    if (!home || !barangay || !city || !postal) {
+    if (!home) {
       showRegMsg('Please fill in all required address fields.', 'error'); return;
     }
-    if (!/^[0-9]{4}$/.test(postal)) {
-      showRegMsg('Postal code must be exactly 4 digits.', 'error'); return;
+    const geoErr = personalGeo.validate('');
+    if (geoErr) {
+      showRegMsg(geoErr, 'error'); return;
     }
 
+    const v = personalGeo.getValues();
     state.address = {
       detailedHome: home,
-      barangay,
-      city,
-      province: document.getElementById('fi-province').value.trim() || null,
-      region: document.getElementById('fi-region').value.trim() || null,
-      postalCode: postal
+      barangay: v.barangay,
+      city: v.city,
+      province: v.province,
+      region: v.region,
+      postalCode: v.postalCode
     };
 
     clearRegMsg();
@@ -322,6 +502,15 @@ function buildStep7() {
     sectorSel.innerHTML = '<option value="">Select Sector</option>' +
       state.lookups.sectors.map(s => `<option value="${s.SectorID}">${s.SectorName}</option>`).join('');
 
+    if (!branchGeo) {
+      branchGeo = createGeoCascade({
+        region: 'fi-branchRegion', province: 'fi-branchProvince', provinceOther: 'fi-branchProvinceOther',
+        city: 'fi-branchCity', cityOther: 'fi-branchCityOther',
+        barangay: 'fi-branchBarangay', barangayOther: 'fi-branchBarangayOther',
+        postal: 'fi-branchPostal'
+      });
+    }
+
     document.getElementById('entity-next').innerHTML = 'Review &amp; Submit &rarr;';
     document.getElementById('entity-next').onclick = validateAndShowReview;
   } else {
@@ -339,26 +528,24 @@ function validateAndShowReview() {
     const tin = document.getElementById('fi-tin').value.trim();
     const sectorId = document.getElementById('fi-sector').value;
     const branchAddr = document.getElementById('fi-branchAddr').value.trim();
-    const branchBarangay = document.getElementById('fi-branchBarangay').value.trim();
-    const branchCity = document.getElementById('fi-branchCity').value.trim();
-    const branchProvince = document.getElementById('fi-branchProvince').value.trim();
-    const branchRegion = document.getElementById('fi-branchRegion').value.trim();
-    const branchPostal = document.getElementById('fi-branchPostal').value.trim();
 
-    if (!entityName || !tin || !sectorId || !branchAddr || !branchBarangay || !branchCity || !branchProvince || !branchPostal) {
+    if (!entityName || !tin || !sectorId || !branchAddr) {
       showRegMsg('Please fill in all required entity and branch fields.', 'error'); return;
     }
-    if (tin.length !== 11) {
-      showRegMsg('TIN must be exactly 11 characters (no dashes).', 'error'); return;
+    if (!/^[0-9]{11}$/.test(tin)) {
+      showRegMsg('TIN must be exactly 11 digits (no letters or dashes).', 'error'); return;
     }
-    if (!/^[0-9]{4}$/.test(branchPostal)) {
-      showRegMsg('Branch Postal Code must be exactly 4 digits.', 'error'); return;
+    const geoErr = branchGeo.validate('branch ');
+    if (geoErr) {
+      showRegMsg(geoErr, 'error'); return;
     }
 
+    const v = branchGeo.getValues();
     state.entity = {
       entityName, tin, sectorId,
-      branchDetailedAddress: branchAddr, branchBarangay, branchCity, branchProvince,
-      branchRegion: branchRegion || null, branchPostalCode: branchPostal
+      branchDetailedAddress: branchAddr,
+      branchBarangay: v.barangay, branchCity: v.city, branchProvince: v.province,
+      branchRegion: v.region, branchPostalCode: v.postalCode
     };
   }
 
