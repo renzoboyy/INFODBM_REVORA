@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { sql, poolPromise } = require('../db');
+const { PH_REGIONS } = require('./geo');
 
 // Translates raw SQL Server constraint-violation text (CHECK/UNIQUE
 // violations bubbling up from sp_RegisterUser) into a message a registrant
@@ -49,20 +50,22 @@ function validateRegistrationInput(b) {
   if (!b.phoneNumber || !/^09[0-9]{9}$/.test(b.phoneNumber)) return 'Phone number must be in the format 09XXXXXXXXX.';
   if (!b.postalCode || !/^[0-9]{4}$/.test(b.postalCode)) return 'Postal code must be exactly 4 digits.';
   if (!b.govtNo || b.govtNo.length > 20) return 'Government ID number is too long.';
-  // Region/Province/City/Barangay are all required in the registration UI's
-  // geography picker (GET /api/geo/*) - this is a server-side backstop
-  // matching that, not a new business rule.
+  // Region is a closed Luzon-only dropdown (GET /api/geo/regions);
+  // Province/City/Barangay are manually typed. This is a server-side
+  // backstop matching the UI, not a new business rule.
   if (!b.region) return 'Please select a region.';
-  if (!b.province) return 'Please select or enter a province.';
-  if (!b.city) return 'Please select or enter a city/municipality.';
-  if (!b.barangay) return 'Please select or enter a barangay.';
+  if (!PH_REGIONS.includes(b.region)) return 'Please select a valid Luzon region.';
+  if (!b.province) return 'Please enter a province.';
+  if (!b.city) return 'Please enter a city/municipality.';
+  if (!b.barangay) return 'Please enter a barangay.';
   if (b.accountType === 'Entity') {
     if (!b.tin || !/^[0-9]{11}$/.test(b.tin)) return 'TIN must be exactly 11 digits.';
     if (!b.branchPostalCode || !/^[0-9]{4}$/.test(b.branchPostalCode)) return 'Branch postal code must be exactly 4 digits.';
     if (!b.branchRegion) return 'Please select a branch region.';
-    if (!b.branchProvince) return 'Please select or enter a branch province.';
-    if (!b.branchCity) return 'Please select or enter a branch city/municipality.';
-    if (!b.branchBarangay) return 'Please select or enter a branch barangay.';
+    if (!PH_REGIONS.includes(b.branchRegion)) return 'Please select a valid Luzon branch region.';
+    if (!b.branchProvince) return 'Please enter a branch province.';
+    if (!b.branchCity) return 'Please enter a branch city/municipality.';
+    if (!b.branchBarangay) return 'Please enter a branch barangay.';
   }
   return null;
 }
@@ -84,13 +87,11 @@ router.post('/register', async (req, res) => {
     request.input('GovtType', sql.VarChar(15), b.govtType);
     request.input('GovtNo', sql.VarChar(20), b.govtNo);
 
-    // @Province/@Barangay/@Region all default to 'Unspecified' in
-    // sp_RegisterUser - only bind them when a real value was submitted, so
-    // an omitted/blank field falls through to that default instead of being
-    // written as NULL. This matters because Province.ProvinceName and
-    // Region.RegionName are both NOT NULL in the schema; binding an empty
-    // Province as SQL NULL here would throw a raw constraint violation
-    // inside sp_ResolveAddress instead of failing gracefully.
+    // Region/Province/Barangay are all required by validateRegistrationInput
+    // above, so these are always truthy here - only bound conditionally to
+    // match sp_RegisterUser's optional parameters (defaulting to
+    // 'Unspecified'), which exist as a safety net against Province.ProvinceName
+    // / Region.RegionName being NOT NULL in the schema.
     if (b.province) request.input('Province', sql.NVarChar(50), b.province);
     if (b.barangay) request.input('Barangay', sql.NVarChar(50), b.barangay);
     if (b.region) request.input('Region', sql.NVarChar(50), b.region);

@@ -9,7 +9,9 @@
    Adds:
      - IX_Users_StatusID_CreatedAt    (Users queue/analytics lookups by status)
      - IX_AuditLog_UserID_Timestamp   (approval/rejection audit trail lookups)
-     - vw_PendingQueue                (covering-index view for the admin queue)
+
+   vw_PendingQueue (formerly defined here) was removed - superseded by
+   vw_PendingQueueClassified and never queried by server/.
    ============================================================================ */
 
 USE [INFODBM_REVORA];
@@ -41,23 +43,16 @@ CREATE NONCLUSTERED INDEX [IX_AuditLog_UserID_Timestamp]
 GO
 
 /* ============================================================================
-   3. vw_PendingQueue - lightweight admin queue projection.
+   3. vw_PendingQueue - REMOVED. Superseded by vw_PendingQueueClassified
+   (06_profile_edit_workflow_v3.sql), which adds the QueueReason column
+   needed to distinguish new registrations from profile-edit re-queues.
+   Nothing in server/ ever queried this view, so it was dropped outright
+   rather than kept alongside its replacement.
    ============================================================================ */
 IF OBJECT_ID('dbo.vw_PendingQueue', 'V') IS NOT NULL DROP VIEW dbo.vw_PendingQueue;
 GO
-CREATE VIEW dbo.vw_PendingQueue AS
-SELECT
-    UserID AS userID,
-    FirstName,
-    LastName,
-    Email,
-    CreatedAt,
-    dbo.fn_SLAStatus(CreatedAt, StatusID) AS SLABucket
-FROM dbo.Users
-WHERE StatusID = 1;
-GO
 
 PRINT '============================================================';
-PRINT ' REVORA indexes & vw_PendingQueue (v3) created successfully.';
+PRINT ' REVORA indexes (v3) created successfully.';
 PRINT '============================================================';
 GO

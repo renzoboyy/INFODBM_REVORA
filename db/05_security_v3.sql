@@ -107,9 +107,10 @@ GO
    PART 4 — EXPLICIT DENY (belt-and-suspenders)
    Branches -> Branch (renamed/thinned table). Geography hierarchy tables
    (Region/Province/CityMunicipality/Barangay) added to the same DENY list -
-   sp_ResolveAddress is the only thing that ever writes to them, and it never
-   deletes rows, so the app logins have no legitimate reason to delete there
-   either.
+   the address find-or-create logic inlined in sp_RegisterUser and
+   sp_ApproveProfileEdit is the only thing that ever writes to them, and it
+   never deletes rows, so the app logins have no legitimate reason to delete
+   there either.
    ============================================================================ */
 
 -- API: cannot delete any row in any user table
@@ -144,11 +145,10 @@ GO
 
 /* ============================================================================
    PART 5 — STORED PROCEDURE EXECUTE GRANTS
-   sp_ResolveAddress is an internal helper called only from within
-   sp_RegisterUser / sp_ApproveProfileEdit; it is NOT granted directly to
-   either app login. Ownership chaining (both procs are owned by dbo) means
-   revora_api_user can execute sp_RegisterUser without a separate grant on
-   sp_ResolveAddress.
+   The address find-or-create logic lives inline inside sp_RegisterUser /
+   sp_ApproveProfileEdit (no separate shared stored procedure), so no
+   additional EXECUTE grant is needed for it beyond the grants on those
+   procs themselves.
    ============================================================================ */
 
 GRANT EXECUTE ON OBJECT::[dbo].[ApproveUserAccount]  TO [revora_staff_user];
@@ -164,13 +164,11 @@ GO
 
 GRANT SELECT ON OBJECT::[dbo].[vw_ApplicantDirectory]     TO [revora_staff_user];
 GRANT SELECT ON OBJECT::[dbo].[vw_ApplicantDetail]        TO [revora_staff_user];
-GRANT SELECT ON OBJECT::[dbo].[vw_PendingQueue]           TO [revora_staff_user];
 GRANT SELECT ON OBJECT::[dbo].[vw_PendingThenApproved]    TO [revora_staff_user];
 GRANT SELECT ON OBJECT::[dbo].[vw_EntityBasedRegistrants] TO [revora_staff_user];
 GO
 
 GRANT SELECT ON OBJECT::[dbo].[vw_ApplicantDirectory]     TO [revora_api_user];
-GRANT SELECT ON OBJECT::[dbo].[vw_PendingQueue]           TO [revora_api_user];
 GO
 
 /* ============================================================================

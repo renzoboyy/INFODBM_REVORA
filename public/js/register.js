@@ -31,138 +31,41 @@ async function fetchLookups() {
   state.lookups = await res.json();
 }
 
-// ── Cascading geography picker (Region -> Province -> City -> Barangay) ──
-// Region is a closed dropdown (GET /api/geo/regions - the 17 fixed PH
-// regions). Province/City/Barangay are NOT exhaustively seeded, so each is
-// a dropdown of whatever already exists under the parent selection, plus an
-// "Other (not listed)" option that reveals a free-text fallback. Picking
-// "Other" (or a parent already being "Other") skips straight to freeform
-// for every level below it, since there's no known parent to query against.
-// One instance is created for the personal address fields and a second,
-// separate instance for the branch address fields - they never share state.
-const GEO_OTHER = '__other__';
+// ── Address fields (Region dropdown + manual Province/City/Barangay) ──
+// Region is a closed dropdown (GET /api/geo/regions - Luzon regions only).
+// Province/City/Barangay/PostalCode are always typed in manually - there's
+// no picker, no "Other" fallback, nothing to cascade. One instance is
+// created for the personal address fields and a second, separate instance
+// for the branch address fields - they never share state.
 
-function createGeoCascade(ids) {
-  const regionSel     = document.getElementById(ids.region);
-  const provinceSel    = document.getElementById(ids.province);
-  const provinceOther  = document.getElementById(ids.provinceOther);
-  const citySel        = document.getElementById(ids.city);
-  const cityOther       = document.getElementById(ids.cityOther);
-  const barangaySel     = document.getElementById(ids.barangay);
-  const barangayOther   = document.getElementById(ids.barangayOther);
-  const postalInput     = document.getElementById(ids.postal);
-
-  async function fetchJSON(url) {
-    try {
-      const res = await fetch(url);
-      return res.ok ? await res.json() : [];
-    } catch {
-      return [];
-    }
+async function fetchJSON(url) {
+  try {
+    const res = await fetch(url);
+    return res.ok ? await res.json() : [];
+  } catch {
+    return [];
   }
+}
 
-  function fillSelect(sel, options, placeholder, includeOther) {
-    sel.innerHTML = `<option value="">${placeholder}</option>` +
-      options.map(o => `<option value="${o}">${o}</option>`).join('') +
-      (includeOther ? `<option value="${GEO_OTHER}">Other (not listed)</option>` : '');
-    sel.disabled = false;
-  }
-
-  function resetLevel(sel, otherInput, placeholder) {
-    sel.innerHTML = `<option value="">${placeholder}</option>`;
-    sel.disabled = true;
-    otherInput.classList.add('hidden');
-    otherInput.value = '';
-  }
-
-  function lockAsFreeform(sel, otherInput, placeholderText) {
-    sel.innerHTML = `<option value="${GEO_OTHER}" selected>Other (not listed)</option>`;
-    sel.disabled = true;
-    otherInput.classList.remove('hidden');
-    otherInput.placeholder = placeholderText;
-    otherInput.value = '';
-  }
-
-  function resetPostal() {
-    postalInput.value = '';
-    postalInput.readOnly = false;
-  }
-
-  async function onRegionChange() {
-    resetLevel(provinceSel, provinceOther, 'Select Region first');
-    resetLevel(citySel, cityOther, 'Select Province first');
-    resetLevel(barangaySel, barangayOther, 'Select City first');
-    resetPostal();
-    if (!regionSel.value) return;
-    const provinces = await fetchJSON(`/api/geo/provinces?region=${encodeURIComponent(regionSel.value)}`);
-    fillSelect(provinceSel, provinces, 'Select Province', true);
-  }
-
-  async function onProvinceChange() {
-    resetLevel(citySel, cityOther, 'Select Province first');
-    resetLevel(barangaySel, barangayOther, 'Select City first');
-    resetPostal();
-    provinceOther.classList.toggle('hidden', provinceSel.value !== GEO_OTHER);
-    if (provinceSel.value === GEO_OTHER) {
-      provinceOther.value = '';
-      provinceOther.focus();
-      lockAsFreeform(citySel, cityOther, 'Enter city/municipality name');
-      lockAsFreeform(barangaySel, barangayOther, 'Enter barangay name');
-      return;
-    }
-    if (!provinceSel.value) return;
-    const cities = await fetchJSON(`/api/geo/cities?region=${encodeURIComponent(regionSel.value)}&province=${encodeURIComponent(provinceSel.value)}`);
-    fillSelect(citySel, cities, 'Select City/Municipality', true);
-  }
-
-  async function onCityChange() {
-    resetLevel(barangaySel, barangayOther, 'Select City first');
-    resetPostal();
-    cityOther.classList.toggle('hidden', citySel.value !== GEO_OTHER);
-    if (citySel.value === GEO_OTHER) {
-      cityOther.value = '';
-      cityOther.focus();
-      lockAsFreeform(barangaySel, barangayOther, 'Enter barangay name');
-      return;
-    }
-    if (!citySel.value) return;
-    const barangays = await fetchJSON(`/api/geo/barangays?region=${encodeURIComponent(regionSel.value)}&province=${encodeURIComponent(provinceSel.value)}&city=${encodeURIComponent(citySel.value)}`);
-    barangaySel.innerHTML = `<option value="">Select Barangay</option>` +
-      barangays.map(b => `<option value="${b.BarangayName}" data-postal="${b.PostalCode}">${b.BarangayName}</option>`).join('') +
-      `<option value="${GEO_OTHER}">Other (not listed)</option>`;
-    barangaySel.disabled = false;
-  }
-
-  function onBarangayChange() {
-    barangayOther.classList.toggle('hidden', barangaySel.value !== GEO_OTHER);
-    if (barangaySel.value === GEO_OTHER) {
-      barangayOther.value = '';
-      barangayOther.focus();
-      resetPostal();
-      return;
-    }
-    const opt = barangaySel.selectedOptions[0];
-    const postal = opt ? opt.dataset.postal : '';
-    postalInput.value = postal || '';
-    postalInput.readOnly = !!postal;
-  }
-
-  regionSel.addEventListener('change', onRegionChange);
-  provinceSel.addEventListener('change', onProvinceChange);
-  citySel.addEventListener('change', onCityChange);
-  barangaySel.addEventListener('change', onBarangayChange);
+function initAddressFields(ids) {
+  const regionSel   = document.getElementById(ids.region);
+  const provinceEl  = document.getElementById(ids.province);
+  const cityEl      = document.getElementById(ids.city);
+  const barangayEl  = document.getElementById(ids.barangay);
+  const postalInput = document.getElementById(ids.postal);
 
   (async () => {
     const regions = await fetchJSON('/api/geo/regions');
-    fillSelect(regionSel, regions, 'Select Region', false);
+    regionSel.innerHTML = `<option value="">Select Region</option>` +
+      regions.map(r => `<option value="${r}">${r}</option>`).join('');
   })();
 
   function getValues() {
     return {
       region: regionSel.value || '',
-      province: provinceSel.value === GEO_OTHER ? provinceOther.value.trim() : (provinceSel.value || ''),
-      city: citySel.value === GEO_OTHER ? cityOther.value.trim() : (citySel.value || ''),
-      barangay: barangaySel.value === GEO_OTHER ? barangayOther.value.trim() : (barangaySel.value || ''),
+      province: provinceEl.value.trim(),
+      city: cityEl.value.trim(),
+      barangay: barangayEl.value.trim(),
       postalCode: postalInput.value.trim()
     };
   }
@@ -170,9 +73,9 @@ function createGeoCascade(ids) {
   function validate(label) {
     const v = getValues();
     if (!v.region) return `Please select a ${label}region.`;
-    if (!v.province) return `Please select or enter a ${label}province.`;
-    if (!v.city) return `Please select or enter a ${label}city/municipality.`;
-    if (!v.barangay) return `Please select or enter a ${label}barangay.`;
+    if (!v.province) return `Please enter a ${label}province.`;
+    if (!v.city) return `Please enter a ${label}city/municipality.`;
+    if (!v.barangay) return `Please enter a ${label}barangay.`;
     if (!/^[0-9]{4}$/.test(v.postalCode)) return `${label ? 'Branch postal' : 'Postal'} code must be exactly 4 digits.`;
     return null;
   }
@@ -447,11 +350,9 @@ function initStep5() {
 
 // ── Step 6: Home Address ───────────────────────────
 function initStep6() {
-  personalGeo = createGeoCascade({
-    region: 'fi-region', province: 'fi-province', provinceOther: 'fi-provinceOther',
-    city: 'fi-city', cityOther: 'fi-cityOther',
-    barangay: 'fi-barangay', barangayOther: 'fi-barangayOther',
-    postal: 'fi-postal'
+  personalGeo = initAddressFields({
+    region: 'fi-region', province: 'fi-province', city: 'fi-city',
+    barangay: 'fi-barangay', postal: 'fi-postal'
   });
 
   document.getElementById('address-next').addEventListener('click', () => {
@@ -503,11 +404,9 @@ function buildStep7() {
       state.lookups.sectors.map(s => `<option value="${s.SectorID}">${s.SectorName}</option>`).join('');
 
     if (!branchGeo) {
-      branchGeo = createGeoCascade({
-        region: 'fi-branchRegion', province: 'fi-branchProvince', provinceOther: 'fi-branchProvinceOther',
-        city: 'fi-branchCity', cityOther: 'fi-branchCityOther',
-        barangay: 'fi-branchBarangay', barangayOther: 'fi-branchBarangayOther',
-        postal: 'fi-branchPostal'
+      branchGeo = initAddressFields({
+        region: 'fi-branchRegion', province: 'fi-branchProvince', city: 'fi-branchCity',
+        barangay: 'fi-branchBarangay', postal: 'fi-branchPostal'
       });
     }
 

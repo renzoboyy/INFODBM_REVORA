@@ -8,7 +8,7 @@ router.get('/search', async (req, res) => {
     const pool = await poolPromise;
     const request = pool.request();
     request.input('q', sql.NVarChar, `%${q}%`);
-    let where = '(FullName LIKE @q OR EntityName LIKE @q OR TIN LIKE @q OR Username LIKE @q)';
+    let where = '(FullName LIKE @q OR EntityName LIKE @q OR Username LIKE @q)';
     if (status) {
       request.input('status', sql.TinyInt, status);
       where += ' AND StatusID = @status';

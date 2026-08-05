@@ -1,94 +1,27 @@
 /* ============================================================================
    REVORA - ADDITIONAL OBJECTS v3 (layered on top of 01_schema_v3.sql)
    Adds:
-     - sp_ResolveAddress                         (geography find-or-create helper)
      - ApproveUserAccount, sp_RejectRegistrant    (approval gatekeepers)
      - sp_RegisterUser                           (registration transaction)
      - fn_SLAStatus                              (On Track / Due Soon / Overdue)
      - vw_ApplicantDirectory, vw_ApplicantDetail  (admin search/review screens)
      - vw_PendingThenApproved (INTERSECT), vw_EntityBasedRegistrants (EXCEPT)
 
-   App-compatibility note: registrant.html's Region/Province/Barangay fields
-   (personal and branch) are all optional in the UI - only DetailedAddress,
-   City, and PostalCode are required. sp_RegisterUser therefore takes
-   @Region/@Province/@Barangay/@BranchRegion/@BranchBarangay as OPTIONAL
-   parameters defaulting to 'Unspecified' (Province.ProvinceName and
-   Region.RegionName are both NOT NULL in 01_schema_v3.sql, so a blank
-   optional field must resolve to a placeholder string, never NULL, before
-   it reaches sp_ResolveAddress). server/routes/registration.js only binds
-   these params when the submitted value is truthy, so an omitted/blank
-   field falls through to the default instead of being passed as NULL.
+   App-compatibility note: registrant.html's Region/Province/City/Barangay
+   fields (personal and branch) are all manually typed by the registrant
+   (Region is a closed Luzon-only dropdown; Province/City/Barangay are plain
+   text). sp_RegisterUser resolves them against the Region -> Province ->
+   CityMunicipality -> Barangay -> Address hierarchy inline (find existing
+   row or create it) - there is no longer a shared sp_ResolveAddress helper;
+   the same find-or-create logic is duplicated inline here and in
+   sp_ApproveProfileEdit (06_profile_edit_workflow_v3.sql) since both need it
+   but neither should depend on a separate stored procedure.
    ============================================================================ */
 
 USE [INFODBM_REVORA];
 GO
 SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
-GO
-
-/* ============================================================================
-   0. sp_ResolveAddress - find-or-create across the geography hierarchy and
-   return an AddressID. Shared by sp_RegisterUser here and sp_ApproveProfileEdit
-   in 06_profile_edit_workflow_v3.sql, so the hierarchy is only ever walked in
-   one place.
-   ============================================================================ */
-IF OBJECT_ID('dbo.sp_ResolveAddress', 'P') IS NOT NULL DROP PROCEDURE dbo.sp_ResolveAddress;
-GO
-CREATE PROCEDURE dbo.sp_ResolveAddress
-    @RegionName      NVARCHAR(50),
-    @ProvinceName    NVARCHAR(50),
-    @CityName        NVARCHAR(50),
-    @BarangayName    NVARCHAR(50),
-    @PostalCode      CHAR(4),
-    @DetailedAddress NVARCHAR(250),
-    @AddressID       CHAR(6) OUTPUT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    DECLARE @RegionID INT, @ProvinceID INT, @CityID INT, @BarangayID INT;
-
-    SELECT @RegionID = RegionID FROM dbo.Region WHERE RegionName = @RegionName;
-    IF @RegionID IS NULL
-    BEGIN
-        INSERT INTO dbo.Region (RegionName) VALUES (@RegionName);
-        SET @RegionID = SCOPE_IDENTITY();
-    END
-
-    SELECT @ProvinceID = ProvinceID FROM dbo.Province WHERE ProvinceName = @ProvinceName AND RegionID = @RegionID;
-    IF @ProvinceID IS NULL
-    BEGIN
-        INSERT INTO dbo.Province (RegionID, ProvinceName) VALUES (@RegionID, @ProvinceName);
-        SET @ProvinceID = SCOPE_IDENTITY();
-    END
-
-    SELECT @CityID = CityID FROM dbo.CityMunicipality WHERE CityName = @CityName AND ProvinceID = @ProvinceID;
-    IF @CityID IS NULL
-    BEGIN
-        INSERT INTO dbo.CityMunicipality (ProvinceID, CityName) VALUES (@ProvinceID, @CityName);
-        SET @CityID = SCOPE_IDENTITY();
-    END
-
-    SELECT @BarangayID = BarangayID FROM dbo.Barangay WHERE BarangayName = @BarangayName AND CityID = @CityID;
-    IF @BarangayID IS NULL
-    BEGIN
-        INSERT INTO dbo.Barangay (CityID, BarangayName, PostalCode) VALUES (@CityID, @BarangayName, @PostalCode);
-        SET @BarangayID = SCOPE_IDENTITY();
-    END
-    ELSE IF (SELECT PostalCode FROM dbo.Barangay WHERE BarangayID = @BarangayID) <> @PostalCode
-    BEGIN
-        UPDATE dbo.Barangay SET PostalCode = @PostalCode WHERE BarangayID = @BarangayID;
-    END
-
-    SELECT @AddressID = AddressID FROM dbo.Address WHERE DetailedAddress = @DetailedAddress AND BarangayID = @BarangayID;
-    IF @AddressID IS NULL
-    BEGIN
-        SET @AddressID = 'A' + RIGHT('00000' + CAST(
-            ISNULL((SELECT MAX(CAST(SUBSTRING(AddressID, 2, 5) AS INT)) FROM dbo.Address), 0) + 1
-        AS VARCHAR), 5);
-        INSERT INTO dbo.Address (AddressID, BarangayID, DetailedAddress)
-        VALUES (@AddressID, @BarangayID, @DetailedAddress);
-    END
-END;
 GO
 
 /* ============================================================================
@@ -223,11 +156,51 @@ BEGIN
         DECLARE @BranchID        CHAR(6);
         DECLARE @EntityID        CHAR(6);
 
-        /* ── Address (personal) ── */
-        EXEC dbo.sp_ResolveAddress
-            @RegionName = @Region, @ProvinceName = @Province, @CityName = @City,
-            @BarangayName = @Barangay, @PostalCode = @PostalCode, @DetailedAddress = @DetailedHome,
-            @AddressID = @AddressID OUTPUT;
+        /* ── Address (personal): find-or-create across the geography
+           hierarchy, inline (no shared sp_ResolveAddress helper). ── */
+        DECLARE @RegionID INT, @ProvinceID INT, @CityID INT, @BarangayID INT;
+
+        SELECT @RegionID = RegionID FROM dbo.Region WHERE RegionName = @Region;
+        IF @RegionID IS NULL
+        BEGIN
+            INSERT INTO dbo.Region (RegionName) VALUES (@Region);
+            SET @RegionID = SCOPE_IDENTITY();
+        END
+
+        SELECT @ProvinceID = ProvinceID FROM dbo.Province WHERE ProvinceName = @Province AND RegionID = @RegionID;
+        IF @ProvinceID IS NULL
+        BEGIN
+            INSERT INTO dbo.Province (RegionID, ProvinceName) VALUES (@RegionID, @Province);
+            SET @ProvinceID = SCOPE_IDENTITY();
+        END
+
+        SELECT @CityID = CityID FROM dbo.CityMunicipality WHERE CityName = @City AND ProvinceID = @ProvinceID;
+        IF @CityID IS NULL
+        BEGIN
+            INSERT INTO dbo.CityMunicipality (ProvinceID, CityName) VALUES (@ProvinceID, @City);
+            SET @CityID = SCOPE_IDENTITY();
+        END
+
+        SELECT @BarangayID = BarangayID FROM dbo.Barangay WHERE BarangayName = @Barangay AND CityID = @CityID;
+        IF @BarangayID IS NULL
+        BEGIN
+            INSERT INTO dbo.Barangay (CityID, BarangayName, PostalCode) VALUES (@CityID, @Barangay, @PostalCode);
+            SET @BarangayID = SCOPE_IDENTITY();
+        END
+        ELSE IF (SELECT PostalCode FROM dbo.Barangay WHERE BarangayID = @BarangayID) <> @PostalCode
+        BEGIN
+            UPDATE dbo.Barangay SET PostalCode = @PostalCode WHERE BarangayID = @BarangayID;
+        END
+
+        SELECT @AddressID = AddressID FROM dbo.Address WHERE DetailedAddress = @DetailedHome AND BarangayID = @BarangayID;
+        IF @AddressID IS NULL
+        BEGIN
+            SET @AddressID = 'A' + RIGHT('00000' + CAST(
+                ISNULL((SELECT MAX(CAST(SUBSTRING(AddressID, 2, 5) AS INT)) FROM dbo.Address), 0) + 1
+            AS VARCHAR), 5);
+            INSERT INTO dbo.Address (AddressID, BarangayID, DetailedAddress)
+            VALUES (@AddressID, @BarangayID, @DetailedHome);
+        END
 
         /* ── Government ID ── */
         SET @GovtID = 'G' + RIGHT('00000' + CAST(
@@ -238,17 +211,53 @@ BEGIN
 
         IF @AccountType = 'Entity'
         BEGIN
-            /* ── Address (branch) ──
-               EXEC's named-parameter syntax only accepts a literal, a
-               variable, or DEFAULT as the value - not an arbitrary
-               expression - so the ISNULL fallback has to be computed into
-               a variable first. */
+            /* ── Address (branch): same inline find-or-create as personal
+               address above, against the branch's own region/province/etc. ── */
             DECLARE @ResolvedBranchProvince NVARCHAR(50) = ISNULL(@BranchProvince, @Province);
 
-            EXEC dbo.sp_ResolveAddress
-                @RegionName = @BranchRegion, @ProvinceName = @ResolvedBranchProvince,
-                @CityName = @BranchCity, @BarangayName = @BranchBarangay, @PostalCode = @BranchPostalCode,
-                @DetailedAddress = @BranchDetailedAddr, @AddressID = @BranchAddressID OUTPUT;
+            DECLARE @BranchRegionID INT, @BranchProvinceID INT, @BranchCityID INT, @BranchBarangayID INT;
+
+            SELECT @BranchRegionID = RegionID FROM dbo.Region WHERE RegionName = @BranchRegion;
+            IF @BranchRegionID IS NULL
+            BEGIN
+                INSERT INTO dbo.Region (RegionName) VALUES (@BranchRegion);
+                SET @BranchRegionID = SCOPE_IDENTITY();
+            END
+
+            SELECT @BranchProvinceID = ProvinceID FROM dbo.Province WHERE ProvinceName = @ResolvedBranchProvince AND RegionID = @BranchRegionID;
+            IF @BranchProvinceID IS NULL
+            BEGIN
+                INSERT INTO dbo.Province (RegionID, ProvinceName) VALUES (@BranchRegionID, @ResolvedBranchProvince);
+                SET @BranchProvinceID = SCOPE_IDENTITY();
+            END
+
+            SELECT @BranchCityID = CityID FROM dbo.CityMunicipality WHERE CityName = @BranchCity AND ProvinceID = @BranchProvinceID;
+            IF @BranchCityID IS NULL
+            BEGIN
+                INSERT INTO dbo.CityMunicipality (ProvinceID, CityName) VALUES (@BranchProvinceID, @BranchCity);
+                SET @BranchCityID = SCOPE_IDENTITY();
+            END
+
+            SELECT @BranchBarangayID = BarangayID FROM dbo.Barangay WHERE BarangayName = @BranchBarangay AND CityID = @BranchCityID;
+            IF @BranchBarangayID IS NULL
+            BEGIN
+                INSERT INTO dbo.Barangay (CityID, BarangayName, PostalCode) VALUES (@BranchCityID, @BranchBarangay, @BranchPostalCode);
+                SET @BranchBarangayID = SCOPE_IDENTITY();
+            END
+            ELSE IF (SELECT PostalCode FROM dbo.Barangay WHERE BarangayID = @BranchBarangayID) <> @BranchPostalCode
+            BEGIN
+                UPDATE dbo.Barangay SET PostalCode = @BranchPostalCode WHERE BarangayID = @BranchBarangayID;
+            END
+
+            SELECT @BranchAddressID = AddressID FROM dbo.Address WHERE DetailedAddress = @BranchDetailedAddr AND BarangayID = @BranchBarangayID;
+            IF @BranchAddressID IS NULL
+            BEGIN
+                SET @BranchAddressID = 'A' + RIGHT('00000' + CAST(
+                    ISNULL((SELECT MAX(CAST(SUBSTRING(AddressID, 2, 5) AS INT)) FROM dbo.Address), 0) + 1
+                AS VARCHAR), 5);
+                INSERT INTO dbo.Address (AddressID, BarangayID, DetailedAddress)
+                VALUES (@BranchAddressID, @BranchBarangayID, @BranchDetailedAddr);
+            END
 
             /* ── Branch ── */
             SET @BranchID = 'B' + RIGHT('00000' + CAST(

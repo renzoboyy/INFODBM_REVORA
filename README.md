@@ -177,7 +177,7 @@ db/
   01_schema_v3.sql              full schema (merged Address/Branch + geography hierarchy) - BUILD FIRST
   02_seed_v2.sql                sample seed data (v2 schema, not yet ported) - reference only
   03_additional_objects_v3.sql  views/procs/function the app needs, incl. sp_ResolveAddress
-  04_indexes_and_views_v3.sql   performance indexes + vw_PendingQueue
+  04_indexes_and_views_v3.sql   performance indexes
   05_security_v3.sql            logins/users/roles/DDM - creates the login the app uses
   06_profile_edit_workflow_v3.sql  self-service profile edit -> re-approval workflow
   *_v2.sql                      superseded schema (flat Address/Branches, BranchCode) - kept for history

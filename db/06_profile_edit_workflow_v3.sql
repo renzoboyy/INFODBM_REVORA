@@ -6,8 +6,11 @@
    Ported from 06_profile_edit_workflow_v2.sql onto the v3 schema. Lifecycle
    is unchanged (see v2 header for the full walkthrough); the only functional
    difference is in sp_ApproveProfileEdit, which now RE-RESOLVES the address
-   (personal and/or branch) through dbo.sp_ResolveAddress instead of
-   UPDATE-ing Address/Branches columns in place. That's a deliberate
+   (personal and/or branch) against the geography hierarchy inline (find
+   existing row or create it - the same logic sp_RegisterUser uses in
+   03_additional_objects_v3.sql; there is no shared sp_ResolveAddress
+   procedure) instead of UPDATE-ing Address/Branches columns in place. That's
+   a deliberate
    consequence of the merge: Address rows are shareable now, so mutating one
    in place could silently change another user's address too. Applying an
    edit instead finds-or-creates the (possibly new) Address row for the
@@ -199,11 +202,11 @@ GO
 
 /* ============================================================================
    4. sp_ApproveProfileEdit - "the admin profile edit procedure".
-   CHANGED from v2: address changes are applied by RE-RESOLVING through
-   dbo.sp_ResolveAddress and repointing the FK, not by UPDATE-ing Address/
-   Branch columns in place (those columns no longer exist flat on either
-   table, and mutating a shared Address row in place would affect every
-   other record pointing at it).
+   CHANGED from v2: address changes are applied by RE-RESOLVING against the
+   geography hierarchy inline and repointing the FK, not by UPDATE-ing
+   Address/Branch columns in place (those columns no longer exist flat on
+   either table, and mutating a shared Address row in place would affect
+   every other record pointing at it).
    ============================================================================ */
 IF OBJECT_ID('dbo.sp_ApproveProfileEdit', 'P') IS NOT NULL DROP PROCEDURE dbo.sp_ApproveProfileEdit;
 GO
@@ -275,12 +278,52 @@ BEGIN
             DECLARE @ResolvedPostalCode CHAR(4) = COALESCE(@NewPostalCode, @CurPostal);
             DECLARE @ResolvedDetailedHome NVARCHAR(250) = COALESCE(@NewDetailedHome, @CurDetailed);
 
+            /* ── Find-or-create across the geography hierarchy, inline
+               (same logic as sp_RegisterUser; no shared stored proc). ── */
             DECLARE @NewHomeAddressID CHAR(6);
-            EXEC dbo.sp_ResolveAddress
-                @RegionName = @CurRegion, @ProvinceName = @ResolvedProvince,
-                @CityName = @ResolvedCity, @BarangayName = @CurBarangay,
-                @PostalCode = @ResolvedPostalCode, @DetailedAddress = @ResolvedDetailedHome,
-                @AddressID = @NewHomeAddressID OUTPUT;
+            DECLARE @HomeRegionID INT, @HomeProvinceID INT, @HomeCityID INT, @HomeBarangayID INT;
+
+            SELECT @HomeRegionID = RegionID FROM dbo.Region WHERE RegionName = @CurRegion;
+            IF @HomeRegionID IS NULL
+            BEGIN
+                INSERT INTO dbo.Region (RegionName) VALUES (@CurRegion);
+                SET @HomeRegionID = SCOPE_IDENTITY();
+            END
+
+            SELECT @HomeProvinceID = ProvinceID FROM dbo.Province WHERE ProvinceName = @ResolvedProvince AND RegionID = @HomeRegionID;
+            IF @HomeProvinceID IS NULL
+            BEGIN
+                INSERT INTO dbo.Province (RegionID, ProvinceName) VALUES (@HomeRegionID, @ResolvedProvince);
+                SET @HomeProvinceID = SCOPE_IDENTITY();
+            END
+
+            SELECT @HomeCityID = CityID FROM dbo.CityMunicipality WHERE CityName = @ResolvedCity AND ProvinceID = @HomeProvinceID;
+            IF @HomeCityID IS NULL
+            BEGIN
+                INSERT INTO dbo.CityMunicipality (ProvinceID, CityName) VALUES (@HomeProvinceID, @ResolvedCity);
+                SET @HomeCityID = SCOPE_IDENTITY();
+            END
+
+            SELECT @HomeBarangayID = BarangayID FROM dbo.Barangay WHERE BarangayName = @CurBarangay AND CityID = @HomeCityID;
+            IF @HomeBarangayID IS NULL
+            BEGIN
+                INSERT INTO dbo.Barangay (CityID, BarangayName, PostalCode) VALUES (@HomeCityID, @CurBarangay, @ResolvedPostalCode);
+                SET @HomeBarangayID = SCOPE_IDENTITY();
+            END
+            ELSE IF (SELECT PostalCode FROM dbo.Barangay WHERE BarangayID = @HomeBarangayID) <> @ResolvedPostalCode
+            BEGIN
+                UPDATE dbo.Barangay SET PostalCode = @ResolvedPostalCode WHERE BarangayID = @HomeBarangayID;
+            END
+
+            SELECT @NewHomeAddressID = AddressID FROM dbo.Address WHERE DetailedAddress = @ResolvedDetailedHome AND BarangayID = @HomeBarangayID;
+            IF @NewHomeAddressID IS NULL
+            BEGIN
+                SET @NewHomeAddressID = 'A' + RIGHT('00000' + CAST(
+                    ISNULL((SELECT MAX(CAST(SUBSTRING(AddressID, 2, 5) AS INT)) FROM dbo.Address), 0) + 1
+                AS VARCHAR), 5);
+                INSERT INTO dbo.Address (AddressID, BarangayID, DetailedAddress)
+                VALUES (@NewHomeAddressID, @HomeBarangayID, @ResolvedDetailedHome);
+            END
 
             UPDATE Users SET Address = @NewHomeAddressID WHERE UserID = @TargetUserID;
         END
@@ -316,12 +359,52 @@ BEGIN
                 DECLARE @ResolvedBranchPostalCode CHAR(4) = COALESCE(@NewBranchPostalCode, @CurBPostal);
                 DECLARE @ResolvedBranchDetailed NVARCHAR(250) = COALESCE(@NewBranchDetailedAddr, @CurBDetailed);
 
+                /* ── Find-or-create across the geography hierarchy, inline
+                   (same logic as sp_RegisterUser; no shared stored proc). ── */
                 DECLARE @NewBranchAddressID CHAR(6);
-                EXEC dbo.sp_ResolveAddress
-                    @RegionName = @CurBRegion, @ProvinceName = @CurBProvince,
-                    @CityName = @ResolvedBranchCity, @BarangayName = @CurBBarangay,
-                    @PostalCode = @ResolvedBranchPostalCode, @DetailedAddress = @ResolvedBranchDetailed,
-                    @AddressID = @NewBranchAddressID OUTPUT;
+                DECLARE @BrRegionID INT, @BrProvinceID INT, @BrCityID INT, @BrBarangayID INT;
+
+                SELECT @BrRegionID = RegionID FROM dbo.Region WHERE RegionName = @CurBRegion;
+                IF @BrRegionID IS NULL
+                BEGIN
+                    INSERT INTO dbo.Region (RegionName) VALUES (@CurBRegion);
+                    SET @BrRegionID = SCOPE_IDENTITY();
+                END
+
+                SELECT @BrProvinceID = ProvinceID FROM dbo.Province WHERE ProvinceName = @CurBProvince AND RegionID = @BrRegionID;
+                IF @BrProvinceID IS NULL
+                BEGIN
+                    INSERT INTO dbo.Province (RegionID, ProvinceName) VALUES (@BrRegionID, @CurBProvince);
+                    SET @BrProvinceID = SCOPE_IDENTITY();
+                END
+
+                SELECT @BrCityID = CityID FROM dbo.CityMunicipality WHERE CityName = @ResolvedBranchCity AND ProvinceID = @BrProvinceID;
+                IF @BrCityID IS NULL
+                BEGIN
+                    INSERT INTO dbo.CityMunicipality (ProvinceID, CityName) VALUES (@BrProvinceID, @ResolvedBranchCity);
+                    SET @BrCityID = SCOPE_IDENTITY();
+                END
+
+                SELECT @BrBarangayID = BarangayID FROM dbo.Barangay WHERE BarangayName = @CurBBarangay AND CityID = @BrCityID;
+                IF @BrBarangayID IS NULL
+                BEGIN
+                    INSERT INTO dbo.Barangay (CityID, BarangayName, PostalCode) VALUES (@BrCityID, @CurBBarangay, @ResolvedBranchPostalCode);
+                    SET @BrBarangayID = SCOPE_IDENTITY();
+                END
+                ELSE IF (SELECT PostalCode FROM dbo.Barangay WHERE BarangayID = @BrBarangayID) <> @ResolvedBranchPostalCode
+                BEGIN
+                    UPDATE dbo.Barangay SET PostalCode = @ResolvedBranchPostalCode WHERE BarangayID = @BrBarangayID;
+                END
+
+                SELECT @NewBranchAddressID = AddressID FROM dbo.Address WHERE DetailedAddress = @ResolvedBranchDetailed AND BarangayID = @BrBarangayID;
+                IF @NewBranchAddressID IS NULL
+                BEGIN
+                    SET @NewBranchAddressID = 'A' + RIGHT('00000' + CAST(
+                        ISNULL((SELECT MAX(CAST(SUBSTRING(AddressID, 2, 5) AS INT)) FROM dbo.Address), 0) + 1
+                    AS VARCHAR), 5);
+                    INSERT INTO dbo.Address (AddressID, BarangayID, DetailedAddress)
+                    VALUES (@NewBranchAddressID, @BrBarangayID, @ResolvedBranchDetailed);
+                END
 
                 UPDATE Branch SET AddressID = @NewBranchAddressID WHERE BranchID = @BranchID;
             END
@@ -472,7 +555,7 @@ GO
 
 PRINT '============================================================';
 PRINT ' REVORA profile-edit workflow v3 applied successfully.';
-PRINT ' sp_ApproveProfileEdit now re-resolves addresses via sp_ResolveAddress';
-PRINT ' instead of updating shared Address/Branch rows in place.';
+PRINT ' sp_ApproveProfileEdit now re-resolves addresses inline against the';
+PRINT ' geography hierarchy instead of updating shared Address/Branch rows in place.';
 PRINT '============================================================';
 GO
