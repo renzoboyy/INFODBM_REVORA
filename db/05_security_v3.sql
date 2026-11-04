@@ -12,6 +12,11 @@
 
    Run ONCE, on top of 01_schema_v3.sql + 03_additional_objects_v3.sql.
    Safe to re-run: each block checks for existence before creating.
+
+   Login passwords are sqlcmd variables, so none are stored in the repo.
+   Pass them on the command line (see README section 3):
+     sqlcmd ... -i "db\05_security_v3.sql" -v AdminPassword="..." StaffPassword="..." ApiPassword="..."
+   In SSMS, turn on Query > SQLCMD Mode and add :setvar lines first.
    ============================================================================ */
 
 USE [master];
@@ -24,7 +29,7 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'revora_admin')
 BEGIN
     CREATE LOGIN [revora_admin]
-        WITH PASSWORD    = N'R3v0ra@Admin#2025!',
+        WITH PASSWORD    = N'$(AdminPassword)',
              CHECK_POLICY = ON,
              CHECK_EXPIRATION = OFF;
     PRINT 'Login [revora_admin] created.';
@@ -36,7 +41,7 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'revora_staff')
 BEGIN
     CREATE LOGIN [revora_staff]
-        WITH PASSWORD    = N'R3v0ra@Staff#2025!',
+        WITH PASSWORD    = N'$(StaffPassword)',
              CHECK_POLICY = ON,
              CHECK_EXPIRATION = OFF;
     PRINT 'Login [revora_staff] created.';
@@ -48,7 +53,7 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'revora_api')
 BEGIN
     CREATE LOGIN [revora_api]
-        WITH PASSWORD    = N'R3v0ra@Api#2025!',
+        WITH PASSWORD    = N'$(ApiPassword)',
              CHECK_POLICY = ON,
              CHECK_EXPIRATION = OFF;
     PRINT 'Login [revora_api] created.';
@@ -213,9 +218,9 @@ PRINT '============================================================';
 PRINT ' REVORA Security Layer v3 applied successfully.';
 PRINT '';
 PRINT ' Server logins created:';
-PRINT '   revora_admin  (password: R3v0ra@Admin#2025!)';
-PRINT '   revora_staff  (password: R3v0ra@Staff#2025!)';
-PRINT '   revora_api    (password: R3v0ra@Api#2025!)';
+PRINT '   revora_admin  (password: AdminPassword variable)';
+PRINT '   revora_staff  (password: StaffPassword variable)';
+PRINT '   revora_api    (password: ApiPassword variable)';
 PRINT '';
 PRINT ' Database users created (in INFODBM_REVORA):';
 PRINT '   revora_admin_user  -> db_owner + UNMASK';

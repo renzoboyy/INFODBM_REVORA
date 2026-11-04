@@ -49,8 +49,20 @@ sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\01_schema_v3.sql"
 sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\02_lookups_v3.sql"
 sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\03_additional_objects_v3.sql"
 sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\04_indexes_and_views_v3.sql"
-sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\05_security_v3.sql"
+sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\05_security_v3.sql" -v AdminPassword="<admin-password>" StaffPassword="<staff-password>" ApiPassword="<api-password>"
 sqlcmd -S "<your-server>\<your-instance>" -E -C -i "db\06_profile_edit_workflow_v3.sql"
+```
+
+`05_security_v3.sql` takes the three login passwords as sqlcmd variables,
+so no password is stored in the repo. Pick your own; they must satisfy your
+instance's password policy (`CHECK_POLICY = ON`). If you run the script from
+SSMS instead, turn on **Query → SQLCMD Mode** and add these lines at the top
+first:
+
+```
+:setvar AdminPassword "<admin-password>"
+:setvar StaffPassword "<staff-password>"
+:setvar ApiPassword "<api-password>"
 ```
 
 **Run all six with `-E` (Windows auth), every time — not just for `01`.**
@@ -105,11 +117,11 @@ This is the security layer from the lab exercise, adapted to Revora's
 actual access model. It creates three SQL Server logins + matching DB
 users, each scoped to a different consumer:
 
-| Login           | Password              | Role                                             |
-|-----------------|------------------------|---------------------------------------------------|
-| `revora_admin`  | `R3v0ra@Admin#2025!`  | `db_owner` + `UNMASK` — full control              |
-| `revora_staff`  | `R3v0ra@Staff#2025!`  | read + approval/rejection SPs only               |
-| `revora_api`    | `R3v0ra@Api#2025!`    | read + write via SPs only, no DELETE, no DDL      |
+| Login           | Password variable | Role                                             |
+|-----------------|-------------------|---------------------------------------------------|
+| `revora_admin`  | `AdminPassword`   | `db_owner` + `UNMASK` — full control              |
+| `revora_staff`  | `StaffPassword`   | read + approval/rejection SPs only               |
+| `revora_api`    | `ApiPassword`     | read + write via SPs only, no DELETE, no DDL      |
 
 It also applies Dynamic Data Masking to `Users.Email`, `Users.PhoneNumber`,
 and `GID.GovtNo` — `revora_staff`/`revora_api` see masked values, only
@@ -134,7 +146,7 @@ DB_SERVER=localhost
 DB_PORT=1435
 DB_DATABASE=INFODBM_REVORA
 DB_USER=revora_admin
-DB_PASS=R3v0ra@Admin#2025!
+DB_PASS=<admin-password>
 PORT=3000
 ```
 
@@ -142,9 +154,8 @@ PORT=3000
   `server\instance` syntax here — set `DB_SERVER` to the host only and
   `DB_PORT` to the static TCP port you configured in step 1. For a
   **default instance** (`MSSQLSERVER`), `DB_PORT` is normally `1433`.
-- `.env` is gitignored — it's still worth changing `revora_admin`'s
-  password on any instance that isn't purely local/disposable, since the
-  value above is the literal one baked into `05_security_v3.sql`.
+- `DB_PASS` is the `AdminPassword` you passed to `05_security_v3.sql`.
+  `.env` is gitignored, so it stays on your machine.
 
 ## 5. Run it
 
@@ -203,7 +214,7 @@ public/
   section 3, or ran them out of order (`06` depends on `05`, which depends
   on `03`/`04`, which depend on `01`).
 - **"Login failed for user 'revora_admin'"** — you skipped `05_security_v3.sql`,
-  or `DB_PASS` doesn't match the password printed by that script.
+  or `DB_PASS` doesn't match the `AdminPassword` you passed to that script.
 - **Node can't connect but SSMS can** — TCP/IP is almost certainly disabled
   on the instance (step 1), or `DB_PORT` doesn't match the instance's
   configured static port.
